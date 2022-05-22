@@ -1,0 +1,28 @@
+SELECT p1.id, p2.id, p1.geom as p1, p2.geom as p2, p1.timestamp as t1, p2.timestamp as t2
+FROM person_57 as p1, person_57 as p2
+WHERE p1.id = p2.id - 1
+
+SELECT 
+p1.id as p1, p2.id as p2, st_distance(p1.geom, p2.geom) as distance, 
+EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp) as duration,
+st_distance(p1.geom, p2.geom)/(EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp)) as speed,
+degrees(st_azimuth(p1.geom, p2.geom)) as turning_angle
+FROM person_57 as p1, person_57 as p2
+WHERE p1.id = p2.id - 1
+
+SELECT 
+p1.id as p1, p2.id as p2, st_distance(p1.geom, p2.geom) as distance, 
+EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp) as duration,
+st_distance(p1.geom, p2.geom)/(EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp)) as speed,
+degrees(st_azimuth(p1.geom, p2.geom)) as turning_angle
+FROM person_67 as p1, person_67 as p2
+WHERE p1.id = p2.id - 1
+
+SELECT 
+p1.id as p1, p2.id as p2, st_distance(p1.geom, p2.geom) as distance, 
+EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp) as duration,
+st_distance(p1.geom, p2.geom)/(EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp)) as speed,
+degrees(st_azimuth(p1.geom, p2.geom)) as turning_angle
+FROM person_68 as p1, person_68 as p2
+WHERE p1.id = p2.id - 1
+

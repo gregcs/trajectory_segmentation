@@ -1,0 +1,13 @@
+CREATE TABLE museum_trajectories (person_id serial primary key, trajectory tgeompoint)
+
+INSERT INTO museum_trajectories
+SELECT 57, tgeompoint_seq(array_agg(tgeompoint_inst(geom, timestamp::timestamptz) ORDER BY timestamp)) AS trajectory
+FROM person_57
+
+INSERT INTO museum_trajectories
+SELECT 67, tgeompoint_seq(array_agg(tgeompoint_inst(geom, timestamp::timestamptz) ORDER BY timestamp)) AS trajectory
+FROM person_67
+
+INSERT INTO museum_trajectories
+SELECT 68, tgeompoint_seq(array_agg(tgeompoint_inst(geom, timestamp::timestamptz) ORDER BY timestamp)) AS trajectory
+FROM person_68

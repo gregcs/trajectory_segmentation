@@ -1,0 +1,82 @@
+ SELECT 
+    avg(info.distance) as avg_distance, 
+    avg(info.duration) as avg_duration, 
+    avg(info.speed) as avg_speed, 
+    avg(info.turning_angle) as avg_turning_angle,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.distance) AS median_distance,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.duration) AS median_duration,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.speed) AS median_speed,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.turning_angle) AS median_turning_angle,
+    min(info.distance) as min_distance, 
+    min(info.duration) as min_duration, 
+    min(info.speed) as min_speed, 
+    min(info.turning_angle) as min_turning_angle,
+    max(info.distance) as max_distance, 
+    max(info.duration) as max_duration, 
+    max(info.speed) as max_speed, 
+    max(info.turning_angle) as max_turning_angle
+ FROM (
+     SELECT 
+        p1.id as p1, p2.id as p2, st_distance(p1.geom, p2.geom) as distance, 
+        EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp) as duration,
+        st_distance(p1.geom, p2.geom)/(EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp)) as speed,
+        degrees(st_azimuth(p1.geom, p2.geom)) as turning_angle
+     FROM person_57 as p1, person_57 as p2
+     WHERE p1.id = p2.id - 1
+ ) AS info;
+ 
+ SELECT 
+    avg(info.distance) as avg_distance, 
+    avg(info.duration) as avg_duration, 
+    avg(info.speed) as avg_speed, 
+    avg(info.turning_angle) as avg_turning_angle,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.distance) AS median_distance,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.duration) AS median_duration,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.speed) AS median_speed,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.turning_angle) AS median_turning_angle,
+    min(info.distance) as min_distance, 
+    min(info.duration) as min_duration, 
+    min(info.speed) as min_speed, 
+    min(info.turning_angle) as min_turning_angle,
+    max(info.distance) as max_distance, 
+    max(info.duration) as max_duration, 
+    max(info.speed) as max_speed, 
+    max(info.turning_angle) as max_turning_angle
+ FROM (
+     SELECT 
+        p1.id as p1, p2.id as p2, st_distance(p1.geom, p2.geom) as distance, 
+        EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp) as duration,
+        st_distance(p1.geom, p2.geom)/(EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp)) as speed,
+        degrees(st_azimuth(p1.geom, p2.geom)) as turning_angle
+     FROM person_67 as p1, person_67 as p2
+     WHERE p1.id = p2.id - 1
+ ) AS info;
+ 
+ 
+ SELECT 
+    avg(info.distance) as avg_distance, 
+    avg(info.duration) as avg_duration, 
+    avg(info.speed) as avg_speed, 
+    avg(info.turning_angle) as avg_turning_angle,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.distance) AS median_distance,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.duration) AS median_duration,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.speed) AS median_speed,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY info.turning_angle) AS median_turning_angle,
+    min(info.distance) as min_distance, 
+    min(info.duration) as min_duration, 
+    min(info.speed) as min_speed, 
+    min(info.turning_angle) as min_turning_angle,
+    max(info.distance) as max_distance, 
+    max(info.duration) as max_duration, 
+    max(info.speed) as max_speed, 
+    max(info.turning_angle) as max_turning_angle
+ FROM (
+     SELECT 
+        p1.id as p1, p2.id as p2, st_distance(p1.geom, p2.geom) as distance, 
+        EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp) as duration,
+        st_distance(p1.geom, p2.geom)/(EXTRACT(EPOCH from p2.timestamp::timestamp) - EXTRACT(epoch from p1.timestamp::timestamp)) as speed,
+        degrees(st_azimuth(p1.geom, p2.geom)) as turning_angle
+     FROM person_68 as p1, person_68 as p2
+     WHERE p1.id = p2.id - 1
+ ) AS info
+ 

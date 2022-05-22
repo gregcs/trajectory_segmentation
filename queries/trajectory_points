@@ -1,0 +1,3 @@
+SELECT id, st_x(geom) as x, st_y(geom) as y, timestamp::timestamp as timestamp from person_57
+SELECT id, st_x(geom) as x, st_y(geom) as y, timestamp::timestamp as timestamp from person_67
+SELECT id, st_x(geom) as x, st_y(geom) as y, timestamp::timestamp as timestamp from person_68
