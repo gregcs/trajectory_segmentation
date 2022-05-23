@@ -434,6 +434,11 @@ TSWLatexianTemp*
 *.xwm
 
 # REVTeX puts footnotes in the bibliography by default, unless the nofootinbib
+
+
+data/trajectory_points_with_stops/
+data/trajectory_segments_MSN
+soc_data/
 # option is specified. Footnotes are the stored in a file with suffix Notes.bib.
 # Uncomment the next line to have this generated file ignored.
 #*Notes.bib
