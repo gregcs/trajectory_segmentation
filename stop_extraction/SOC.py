@@ -1,9 +1,10 @@
 import itertools
+from this import d
 from dateutil import parser
 import json
 from scipy.spatial import ConvexHull
 from scipy.spatial import distance
-from shapely.geometry import Polygon, LineString
+from shapely.geometry import Polygon
 import os
 
 class SOCStopExtractor:
@@ -18,12 +19,11 @@ class SOCStopExtractor:
         self.straightness_tsh = straightness_tsh if straightness_tsh else 0.5
         self.centered_distance_tsh = centered_distance_tsh if centered_distance_tsh else 2 * eps
 
+    def point_coordinates(self, point):
+        return point[2]
 
     def point_timestamp(self, point):
         return point[3]
-
-    def point_coordinates(self, point):
-        return point[2]
 
     def distance_point_coordinates(self, p1_coordinates, p2_coordinates):
         return distance.euclidean(p1_coordinates, p2_coordinates)
@@ -129,21 +129,22 @@ class SOCStopExtractor:
                         max(r, self.distance(point_index, eps_seq[next_point_sequence_index]))
                     next_point_sequence_index+=1
 
-    def extract_eps_reachability_sequence(self, counter):
-        eps_reachability_sequence = []
-        while(counter < len(self.traj_points)):
-            if self.reachability_distances[counter] <= self.eps:
-                eps_reachability_sequence.append(counter)
-            else:
-                break
-            counter+=1
-        return (eps_reachability_sequence, counter+1)
-
     def extract_eps_reachability_sequences(self):
+
+        def extract_eps_reachability_sequence(counter):
+            eps_reachability_sequence = []
+            while(counter < len(self.traj_points)):
+                if self.reachability_distances[counter] <= self.eps:
+                    eps_reachability_sequence.append(counter)
+                    counter+=1
+                else:
+                    break
+            return (eps_reachability_sequence, counter+1)
+
         eps_reachability_sequences = []
         counter = 0
         while(counter < len(self.traj_points)):
-            (eps_reachability_sequence, counter) = self.extract_eps_reachability_sequence(counter)
+            (eps_reachability_sequence, counter) = extract_eps_reachability_sequence(counter)
             if eps_reachability_sequence:
                 eps_reachability_sequences.append(eps_reachability_sequence)
         return eps_reachability_sequences
@@ -176,20 +177,17 @@ class SOCStopExtractor:
                         self.time_diff(seq1[-1], seq2[0]) < self.minMov
 
         def criterion2(seq1, seq2):
-            def get_geom_hull(points_seq):
+            def get_geom_hull(seq):
+                points_seq = [self.point_coordinates(self.traj_points[i]) for i in seq]
                 hull = [(points_seq[ip1], points_seq[ip2]) for ip1, ip2 in ConvexHull(points_seq).simplices]
                 return Polygon([point for side in hull for point in side])
-            points_seq1 = [self.traj_points[i][2] for i in seq1]
-            points_seq2 = [self.traj_points[i][2] for i in seq2]
-            geom1 = get_geom_hull(points_seq1) if len(points_seq1) > 2 else  LineString(points_seq1)
-            geom2 = get_geom_hull(points_seq2) if len(points_seq2) > 2 else  LineString(points_seq2)
-            return geom1.overlaps(geom2) and self.time_diff(seq2[0], seq1[-1]) < self.minMov
+            return (len(seq1) > 2 and len(seq2) >2) and get_geom_hull(seq1).overlaps(get_geom_hull(seq2)) and self.time_diff(seq1[-1], seq2[0]) < self.minMov
 
         def is_mergeable(seq1, seq2):
             return criterion1(seq1, seq2) and criterion2(seq1,seq2)
 
-        def merge_to_last_element(list_of_sequences, lst_to_merge):
-            list_of_sequences.append(self.list_concat(list_of_sequences.pop(), lst_to_merge))
+        def merge_to_last_element(list_of_sequences, list_to_merge):
+            list_of_sequences.append(self.list_concat(list_of_sequences.pop(), list_to_merge))
 
         merged_eps_reachability_sequences = []
         eps_rs_counter = 0
@@ -197,7 +195,7 @@ class SOCStopExtractor:
         while(eps_rs_counter < len(eps_reachability_sequences) - 1):
             if not merged:
                 if is_mergeable(eps_reachability_sequences[eps_rs_counter], eps_reachability_sequences[eps_rs_counter+1]):
-                    merged_eps_reachability_sequences.append(self.list_concat(eps_reachability_sequences[eps_rs_counter],(eps_reachability_sequences[eps_rs_counter+1])))
+                    merged_eps_reachability_sequences.append(self.list_concat(eps_reachability_sequences[eps_rs_counter], eps_reachability_sequences[eps_rs_counter+1]))
                     eps_rs_counter+=2
                     merged = True
                 else:
@@ -211,21 +209,17 @@ class SOCStopExtractor:
                     merged = True
                 else:
                     merged = False
-        return merged_eps_reachability_sequences
+        if not all(point_index in merged_eps_reachability_sequences[-1] for point_index in eps_reachability_sequences[-1]):
+            if is_mergeable(merged_eps_reachability_sequences[-1], eps_reachability_sequences[-1]):
+                merge_to_last_element(merged_eps_reachability_sequences, eps_reachability_sequences[-1])
+            else:
+                merged_eps_reachability_sequences.append(eps_reachability_sequences[-1])
+        return merged_eps_reachability_sequences            
 
     def prune_eps_reachability_sequences(self, eps_reachability_sequences):
-        pruned_eps_reachability_sequences = []
         for seq in eps_reachability_sequences:
-            pruned_eps_reachability_sequence = []
-            i = len(seq) - 1
-            while i >= 0 and (not self.is_core_point(seq[i])):
-                i-=1
-            while i>=0:
-                pruned_eps_reachability_sequence.append(seq[i])
-                i-=1
-            pruned_eps_reachability_sequence.reverse()
-            pruned_eps_reachability_sequences.append(pruned_eps_reachability_sequence)
-        return pruned_eps_reachability_sequences                
+            while not self.is_core_point(seq[-1]):
+                seq.pop()
 
     def straightness(self, sequence):
         den = 0
@@ -271,12 +265,11 @@ class SOCStopExtractor:
         self.save_intermediate_results(save_intermediate_results, folder_name, 'merged_eps_reachability_sequences', file_variable_name, merged_eps_reachability_sequences)
         print('Finished to merge eps reachability sequences (merged %d).' % (len(eps_reachability_sequences) - len(merged_eps_reachability_sequences)))
         print('Pruning merged eps reachability sequences ...')
-        pruned_eps_reachability_sequences = self.prune_eps_reachability_sequences(merged_eps_reachability_sequences)
-        self.save_intermediate_results(save_intermediate_results, folder_name, 'pruned_eps_reachability_sequences', file_variable_name, pruned_eps_reachability_sequences)
+        self.prune_eps_reachability_sequences(merged_eps_reachability_sequences)
+        self.save_intermediate_results(save_intermediate_results, folder_name, 'pruned_eps_reachability_sequences', file_variable_name, merged_eps_reachability_sequences)
         print('Finished to prune merged eps reachability sequences.')
-        filtered_eps_reachability_sequences = self.filter_false_positive_stop_sequences(pruned_eps_reachability_sequences)
+        print('Filtering false positive stop sequences ...')
+        filtered_eps_reachability_sequences = self.filter_false_positive_stop_sequences(merged_eps_reachability_sequences)
+        self.save_intermediate_results(save_intermediate_results, folder_name, 'filtered_eps_reachability_sequences', file_variable_name, filtered_eps_reachability_sequences)
+        print('Finished to filter false positive stop sequences (filtered %d).' % (len(merged_eps_reachability_sequences) - len(filtered_eps_reachability_sequences)))
         return filtered_eps_reachability_sequences
-
-
-
-

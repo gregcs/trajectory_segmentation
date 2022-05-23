@@ -128,5 +128,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+data/trajectory_points_with_stops/
+data/trajectory_segments_MSN
+soc_data/
+
+
+
 
 soc_data/

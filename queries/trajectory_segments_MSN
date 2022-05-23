@@ -1,0 +1,47 @@
+CREATE TABLE trajectory_segments_MSN_p57 (
+  id SERIAL,
+  p1 INTEGER,
+  p2 INTEGER,
+  distance DOUBLE PRECISION,
+  duration DOUBLE PRECISION,
+  speed DOUBLE PRECISION,
+  turning_angle DOUBLE PRECISION,
+  segment VARCHAR(50)
+)
+
+CREATE TABLE trajectory_segments_MSN_p67 (
+  id SERIAL,
+  p1 INTEGER,
+  p2 INTEGER,
+  distance DOUBLE PRECISION,
+  duration DOUBLE PRECISION,
+  speed DOUBLE PRECISION,
+  turning_angle DOUBLE PRECISION,
+  segment VARCHAR(50)
+)
+
+CREATE TABLE trajectory_segments_MSN_p68 (
+  id SERIAL,
+  p1 INTEGER,
+  p2 INTEGER,
+  distance DOUBLE PRECISION,
+  duration DOUBLE PRECISION,
+  speed DOUBLE PRECISION,
+  turning_angle DOUBLE PRECISION,
+  segment VARCHAR(50)
+)
+--Once tables has been created, data can be uploaded manually from the pgadmin interface (folder =data/trajectory_segments_MSN/)
+
+SELECT ts.id, ts.p1, ts.p2, ts.segment, st_makeline(p1.geom, p2.geom) as geom 
+FROM trajectory_segments_MSN_p57 as ts join person_57 as p1 on p1.id = ts.p1 
+join person_57 as p2 on p2.id = ts.p2
+
+SELECT ts.id, ts.p1, ts.p2, ts.segment, st_makeline(p1.geom, p2.geom) as geom 
+FROM trajectory_segments_MSN_p67 as ts join person_p67 as p1 on p1.id = ts.p1 
+join person_p67 as p2 on p2.id = ts.p2
+
+SELECT ts.id, ts.p1, ts.p2, ts.segment, st_makeline(p1.geom, p2.geom) as geom 
+FROM trajectory_segments_MSN_p68 as ts join person_p68 as p1 on p1.id = ts.p1 
+join person_p68 as p2 on p2.id = ts.p2
+
+--Run the SELECT query with the QGIS DB manager plugin and then import the layer

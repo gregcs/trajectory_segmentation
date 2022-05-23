@@ -24,9 +24,9 @@ def eps_tau(ratio, minimum_sampling_interval, taumult):
 traj_points = read_csv('data/trajectory_points/trajectory_points_57.csv')
 
 minimum_sampling_interval_p57 = 0.071
-(eps,tau) = eps_tau(0.8, minimum_sampling_interval_p57, 5)
+(eps,tau) = eps_tau(0.85, minimum_sampling_interval_p57, 5)
 undefined = 1.2 * eps
-min_mov = 0.085
+min_mov = 0.5
 
 stop_extractor = SOCStopExtractor(traj_points, eps , tau, undefined, min_mov)
 stops = stop_extractor.SOC(True, 'soc_data/' + time.strftime("%Y%m%d_%H%M%S"), 'person_57')
