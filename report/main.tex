@@ -4,11 +4,15 @@
 \usepackage[section]{placeins}
 \usepackage{amsmath}
 \usepackage{enumitem}
-\usepackage{graphicx}
-\usepackage[section]{placeins}
 \usepackage{subfigure}
 \usepackage{listings}
 \usepackage{hyperref}
+\usepackage{tcolorbox}
+
+\tcbuselibrary{theorems}
+
+\newtcbtheorem[number within = section]{definition}{\emph{Definition }}{colback = gray!10, colframe = gray!50!black, fonttitle = \bfseries}{th}
+\newtcbtheorem[]{theorem}{\emph{Theorem }}{colback = gray!10, colframe = gray!50!black, fonttitle = \bfseries}{th}
 
 \title{Geospatial Data Management Project}
 \author{
@@ -26,5 +30,43 @@ mat. 989910 & mat.  \\
 \tableofcontents
 \newpage
 \section{Introduzione}
-
+\begin{definition}{Traiettoria}{}
+    Una traiettoria è una traccia generata da un oggetto in movimento in spazi geografici, di solito rappresentata da una serie di punti cronologicamente ordinati $$p_1 \rightarrow p_2 \rightarrow \dots \rightarrow p_n$$ dove ogni punto consiste in una coppia di coordinate geografice associate ad un timestamp $$p=(x,y,t)$$
+\end{definition}
+Le traiettorie offrono la possibilità di estrarre informazioni da oggetti in movimento, come animali, veicoli o persone.\\
+In base alla natura dei dati è possibile classificare le tipologie di dati relative a traiettorie in 4 possibili gruppi (Yu Zheng):
+\begin{itemize}
+    \item \textbf{Mobilità di persone}
+    \item Mobilità di veicoli
+    \item Mobilità di animali
+    \item Mobilità di fenomeni naturali
+\end{itemize}
+Il dataset in analisi tratta dati relativi a mobilità di persone, dove 3 visitatori di un museo hanno visto registrare \textbf{attivamente} i loro movimenti per un certo periodo di tempo (da capire) con un RTLS.
+\begin{definition}{RTLS}{}
+    Si definisce RTLS qualsiasi sistema (hardware + software) in grado di campionare accuratamente la posizione di un'entità in uno spazio definito ad un'alta frequenza.\\
+    RTLS non è uno specifico tipo di sistema, ma più un obiettivo che può essere raggiunto utilizzando vari sistemi (Damiani)
+\end{definition}
+I real-time location systems utilizzati forniscono la posizione di un tag. In base alle caratteristiche del sistema una posizione può indicare:
+\begin{itemize}
+    \item \textbf{Presenza} in un'area, espressa simbolicamente
+    \item \text{Posizione precisa}, espressa in coordinate
+    \item \text{Vicinanza} ad un altro tag, espressa come distanza o simbolicamente
+\end{itemize}
+Nel caso in analisi la posizione è espressa in coordinate con CRS ESPG 3003.\\[12pt]
+Si parla in particolare di registrazione \textbf{attiva} (Yu Zheng) quando l'entità tracciata partecipa direttamente all'attività di tracciamento tramite l'utilizzo di RTLS, come nel caso delle persone in analisi.
+\newpage
+\section{Trajectory Preprocessing}
+Prima di analizzare il dataset risulta utile operare operazioni di preprocessing su ogni traiettoria, allo scopo di:
+\begin{itemize}
+    \item Eliminare/ridurre rumore dovuto all'inaccuratezza del sistema di tracciamento
+    \item Identificare \textbf{stop points}
+    \item Approssimare la traiettoria stessa, con lo scopo di ridurre la sua dimensione, ma allo stesso tempo non perdere informazione
+    \item Segmentare la traiettoria, con lo scopo di estrarre informazioni aggiuntive basate ad esempio sulla forma della traiettoria
+\end{itemize}
+\subsection{Noise reduction}
+\subsection{Stop points detection}
+\subsection{Trajectory approximation}
+\subsection{Trajectory segmentation}
+\section{Trajectory Pattern Mining}
+Un importante punto di analisi riguarda lo scoprire gruppi di persone che si muovono insieme per un certo periodo di tempo. Per raggiungere l'obiettivo sono stati sviluppati algoritmi come
 \end{document}
