@@ -1,0 +1,77 @@
+WITH sp57_min_distance_from_buffers AS (
+		SELECT sp57.id as id, min(st_distance(sp57.geom, st_centroid(eb.geom))) as min_distance
+		FROM trajectory_points_with_stops_57 AS sp57 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp57.geom, eb.geom)
+		WHERE sp57.segment != 'move'
+		GROUP BY sp57.id
+), sp57_stop_points_in_nearest_exh_buffers AS (
+		SELECT sp57.id as point_id, sp57.geom, sp57.timestamp, eb.id as exh_id, st_distance(sp57.geom, st_centroid(eb.geom)) as distance, ROW_NUMBER() OVER (ORDER BY sp57.timestamp) 
+		FROM trajectory_points_with_stops_57 AS sp57 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp57.geom, eb.geom)
+		JOIN sp57_min_distance_from_buffers AS sp57_min_dist ON sp57.id = sp57_min_dist.id
+		WHERE sp57_min_dist.min_distance = st_distance(sp57.geom, st_centroid(eb.geom))
+), p57_exhibit_visiting_time AS (
+	SELECT 57 as visitor, t1.exh_id, SUM(EXTRACT(EPOCH from t2.timestamp) - EXTRACT(EPOCH from t1.timestamp)) as time_visited
+	FROM sp57_stop_points_in_nearest_exh_buffers as t1, sp57_stop_points_in_nearest_exh_buffers as t2 
+	WHERE t1.row_number = t2.row_number - 1 and t1.exh_id = t2.exh_id
+	GROUP BY t1.exh_id
+	ORDER BY exh_id
+), sp67_min_distance_from_buffers AS (
+		SELECT sp67.id as id, min(st_distance(sp67.geom, st_centroid(eb.geom))) as min_distance
+		FROM trajectory_points_with_stops_67 AS sp67 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp67.geom, eb.geom)
+		WHERE sp67.segment != 'move'
+		GROUP BY sp67.id
+), sp67_stop_points_in_nearest_exh_buffers AS (
+		SELECT sp67.id as point_id, sp67.geom, sp67.timestamp, eb.id as exh_id, st_distance(sp67.geom, st_centroid(eb.geom)) as distance, ROW_NUMBER() OVER (ORDER BY sp67.timestamp) 
+		FROM trajectory_points_with_stops_67 AS sp67 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp67.geom, eb.geom)
+		JOIN sp67_min_distance_from_buffers AS sp67_min_dist ON sp67.id = sp67_min_dist.id
+		WHERE sp67_min_dist.min_distance = st_distance(sp67.geom, st_centroid(eb.geom))
+), p67_exhibit_visiting_time AS (
+	SELECT 67 as visitor, t1.exh_id, SUM(EXTRACT(EPOCH from t2.timestamp) - EXTRACT(EPOCH from t1.timestamp)) as time_visited
+	FROM sp67_stop_points_in_nearest_exh_buffers as t1, sp67_stop_points_in_nearest_exh_buffers as t2 
+	WHERE t1.row_number = t2.row_number - 1 and t1.exh_id = t2.exh_id
+	GROUP BY t1.exh_id
+	ORDER BY exh_id
+), sp68_min_distance_from_buffers AS (
+		SELECT sp68.id as id, min(st_distance(sp68.geom, st_centroid(eb.geom))) as min_distance
+		FROM trajectory_points_with_stops_68 AS sp68 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp68.geom, eb.geom)
+		WHERE sp68.segment != 'move'
+		GROUP BY sp68.id
+), sp68_stop_points_in_nearest_exh_buffers AS (
+		SELECT sp68.id as point_id, sp68.geom, sp68.timestamp, eb.id as exh_id, st_distance(sp68.geom, st_centroid(eb.geom)) as distance, ROW_NUMBER() OVER (ORDER BY sp68.timestamp) 
+		FROM trajectory_points_with_stops_68 AS sp68 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp68.geom, eb.geom)
+		JOIN sp68_min_distance_from_buffers AS sp68_min_dist ON sp68.id = sp68_min_dist.id
+		WHERE sp68_min_dist.min_distance = st_distance(sp68.geom, st_centroid(eb.geom))
+), p68_exhibit_visiting_time AS (
+	SELECT 68 as visitor, t1.exh_id, SUM(EXTRACT(EPOCH from t2.timestamp) - EXTRACT(EPOCH from t1.timestamp)) as time_visited
+	FROM sp68_stop_points_in_nearest_exh_buffers as t1, sp68_stop_points_in_nearest_exh_buffers as t2 
+	WHERE t1.row_number = t2.row_number - 1 and t1.exh_id = t2.exh_id
+	GROUP BY t1.exh_id
+	ORDER BY exh_id
+)
+
+--Run select queries and then import the layers into QGIS
+--SELECT * FROM sp57_stop_points_in_nearest_exh_buffers
+--SELECT * FROM sp67_stop_points_in_nearest_exh_buffers
+--SELECT * FROM sp68_stop_points_in_nearest_exh_buffers
+
+--exhibit visiting time per visitor
+SELECT *
+FROM p57_exhibit_visiting_time UNION 
+SELECT * FROM p67_exhibit_visiting_time UNION 
+SELECT * FROM p68_exhibit_visiting_time
+ORDER BY visitor, exh_id
+
+--exhibit visiting total time 
+SELECT times.exh_id, sum(times.time_visited) as total_time_visited
+FROM (SELECT *
+FROM p57_exhibit_visiting_time UNION 
+SELECT * FROM p67_exhibit_visiting_time UNION 
+SELECT * FROM p68_exhibit_visiting_time
+ORDER BY visitor, exh_id) AS times
+GROUP BY times.exh_id
+

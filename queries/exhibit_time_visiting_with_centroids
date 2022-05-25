@@ -1,0 +1,106 @@
+WITH p57_stop_centroids AS (
+	SELECT segment, st_centroid(st_convexhull(st_collect(geom))) as geom
+	FROM trajectory_points_with_stops_57
+	WHERE segment != 'move'
+	GROUP BY segment
+), p57_stop_centroids_that_intersects_exhibit_buffers_with_distances AS (
+	SELECT sc.segment, sc.geom as stop_centroid_geom, 
+	eb.id as exhibit_id, 
+	st_centroid(eb.geom) as exhibit_buffer_centroid_geom, 
+	st_distance(sc.geom, st_centroid(eb.geom)) as distance
+	FROM p57_stop_centroids as sc
+	JOIN exhibits_on_tables_buffers_07m as eb on st_intersects(sc.geom, eb.geom)
+), p57_stop_centroids_that_intersects_exhibit_buffers_with_min_distance AS (
+	SELECT *
+	FROM p57_stop_centroids_that_intersects_exhibit_buffers_with_distances as scd
+	WHERE scd.distance in (SELECT min(distance)
+						   FROM p57_stop_centroids_that_intersects_exhibit_buffers_with_distances
+						   GROUP BY segment)
+), p57_trajectory_points_with_stops_with_correct_exhibit AS (
+		SELECT *, ROW_NUMBER() OVER (ORDER BY sp.timestamp) 
+		FROM trajectory_points_with_stops_57 as sp
+		JOIN p57_stop_centroids_that_intersects_exhibit_buffers_with_min_distance as scmd on sp.segment = scmd.segment 
+), p57_exhibit_visiting_time AS (
+	SELECT  57 as visitor, t1.exhibit_id, SUM(EXTRACT(EPOCH from t2.timestamp) - EXTRACT(EPOCH from t1.timestamp)) as time_visited
+	FROM p57_trajectory_points_with_stops_with_correct_exhibit as t1, p57_trajectory_points_with_stops_with_correct_exhibit as t2
+	WHERE t1.row_number = t2.row_number - 1 and t1.exhibit_id = t2.exhibit_id
+	GROUP BY t1.exhibit_id
+	ORDER BY t1.exhibit_id
+), p67_stop_centroids AS (
+	SELECT segment, st_centroid(st_convexhull(st_collect(geom))) as geom
+	FROM trajectory_points_with_stops_67
+	WHERE segment != 'move'
+	GROUP BY segment
+), p67_stop_centroids_that_intersects_exhibit_buffers_with_distances AS (
+	SELECT sc.segment, sc.geom as stop_centroid_geom, 
+	eb.id as exhibit_id, 
+	st_centroid(eb.geom) as exhibit_buffer_centroid_geom, 
+	st_distance(sc.geom, st_centroid(eb.geom)) as distance
+	FROM p67_stop_centroids as sc
+	JOIN exhibits_on_tables_buffers_07m as eb on st_intersects(sc.geom, eb.geom)
+), p67_stop_centroids_that_intersects_exhibit_buffers_with_min_distance AS (
+	SELECT *
+	FROM p67_stop_centroids_that_intersects_exhibit_buffers_with_distances as scd
+	WHERE scd.distance in (SELECT min(distance)
+						   FROM p67_stop_centroids_that_intersects_exhibit_buffers_with_distances
+						   GROUP BY segment)
+), p67_trajectory_points_with_stops_with_correct_exhibit AS (
+		SELECT *, ROW_NUMBER() OVER (ORDER BY sp.timestamp) 
+		FROM trajectory_points_with_stops_67 as sp
+		JOIN p67_stop_centroids_that_intersects_exhibit_buffers_with_min_distance as scmd on sp.segment = scmd.segment 
+), p67_exhibit_visiting_time AS (
+	SELECT  67 as visitor, t1.exhibit_id, SUM(EXTRACT(EPOCH from t2.timestamp) - EXTRACT(EPOCH from t1.timestamp)) as time_visited
+	FROM p67_trajectory_points_with_stops_with_correct_exhibit as t1, p67_trajectory_points_with_stops_with_correct_exhibit as t2
+	WHERE t1.row_number = t2.row_number - 1 and t1.exhibit_id = t2.exhibit_id
+	GROUP BY t1.exhibit_id
+	ORDER BY t1.exhibit_id
+), p68_stop_centroids AS (
+	SELECT segment, st_centroid(st_convexhull(st_collect(geom))) as geom
+	FROM trajectory_points_with_stops_68
+	WHERE segment != 'move'
+	GROUP BY segment
+), p68_stop_centroids_that_intersects_exhibit_buffers_with_distances AS (
+	SELECT sc.segment, sc.geom as stop_centroid_geom, 
+	eb.id as exhibit_id, 
+	st_centroid(eb.geom) as exhibit_buffer_centroid_geom, 
+	st_distance(sc.geom, st_centroid(eb.geom)) as distance
+	FROM p68_stop_centroids as sc
+	JOIN exhibits_on_tables_buffers_07m as eb on st_intersects(sc.geom, eb.geom)
+), p68_stop_centroids_that_intersects_exhibit_buffers_with_min_distance AS (
+	SELECT *
+	FROM p68_stop_centroids_that_intersects_exhibit_buffers_with_distances as scd
+	WHERE scd.distance in (SELECT min(distance)
+						   FROM p68_stop_centroids_that_intersects_exhibit_buffers_with_distances
+						   GROUP BY segment)
+), p68_trajectory_points_with_stops_with_correct_exhibit AS (
+		SELECT *, ROW_NUMBER() OVER (ORDER BY sp.timestamp) 
+		FROM trajectory_points_with_stops_68 as sp
+		JOIN p68_stop_centroids_that_intersects_exhibit_buffers_with_min_distance as scmd on sp.segment = scmd.segment 
+), p68_exhibit_visiting_time AS (
+	SELECT  68 as visitor, t1.exhibit_id, SUM(EXTRACT(EPOCH from t2.timestamp) - EXTRACT(EPOCH from t1.timestamp)) as time_visited
+	FROM p68_trajectory_points_with_stops_with_correct_exhibit as t1, p68_trajectory_points_with_stops_with_correct_exhibit as t2
+	WHERE t1.row_number = t2.row_number - 1 and t1.exhibit_id = t2.exhibit_id
+	GROUP BY t1.exhibit_id
+	ORDER BY t1.exhibit_id
+)
+ 
+-- SELECT * FROM p57_exhibit_visiting_time
+-- SELECT * FROM p67_exhibit_visiting_time
+-- SELECT * FROM p68_exhibit_visiting_time
+
+--exhibit visiting time per visitor
+SELECT *
+FROM p57_exhibit_visiting_time UNION 
+SELECT * FROM p67_exhibit_visiting_time UNION 
+SELECT * FROM p68_exhibit_visiting_time
+ORDER BY visitor, exhibit_id;
+
+--exhibit visiting total time 
+SELECT times.exhibit_id, sum(times.time_visited) as total_time_visited
+FROM (SELECT *
+FROM p57_exhibit_visiting_time UNION 
+SELECT * FROM p67_exhibit_visiting_time UNION 
+SELECT * FROM p68_exhibit_visiting_time
+ORDER BY visitor, exhibit_id) AS times
+GROUP BY times.exhibit_id
+

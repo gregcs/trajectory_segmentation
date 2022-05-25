@@ -1,0 +1,66 @@
+WITH sp57_min_distance_from_buffers AS (
+		SELECT sp57.id , min(st_distance(sp57.geom, st_centroid(eb.geom))) as min_distance
+		FROM trajectory_points_with_stops_57 AS sp57 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp57.geom, eb.geom)
+		WHERE sp57.segment != 'move'
+		GROUP BY sp57.id
+), sp57_stop_points_in_nearest_exh_buffers AS (
+		SELECT 57 AS person_id, sp57.id as point_id, sp57.geom, sp57.timestamp, eb.id as exh_id, st_distance(sp57.geom, st_centroid(eb.geom)) as distance_from_centroid
+		FROM trajectory_points_with_stops_57 AS sp57 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp57.geom, eb.geom)
+		JOIN sp57_min_distance_from_buffers AS sp57_min_dist ON sp57.id = sp57_min_dist.id
+		WHERE sp57_min_dist.min_distance = st_distance(sp57.geom, st_centroid(eb.geom))
+), sp67_min_distance_from_buffers AS (
+		SELECT sp67.id , min(st_distance(sp67.geom, st_centroid(eb.geom))) as min_distance
+		FROM trajectory_points_with_stops_67 AS sp67 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp67.geom, eb.geom)
+		WHERE sp67.segment != 'move'
+		GROUP BY sp67.id
+), sp67_stop_points_in_nearest_exh_buffers AS (
+		SELECT 67 as person_id, sp67.id as point_id, sp67.geom, sp67.timestamp, eb.id as exh_id, st_distance(sp67.geom, st_centroid(eb.geom)) as distance_from_centroid
+		FROM trajectory_points_with_stops_67 AS sp67 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp67.geom, eb.geom)
+		JOIN sp67_min_distance_from_buffers AS sp67_min_dist ON sp67.id = sp67_min_dist.id
+		WHERE sp67_min_dist.min_distance = st_distance(sp67.geom, st_centroid(eb.geom))
+), sp68_min_distance_from_buffers AS (
+		SELECT sp68.id , min(st_distance(sp68.geom, st_centroid(eb.geom))) as min_distance
+		FROM trajectory_points_with_stops_68 AS sp68 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp68.geom, eb.geom)
+		WHERE sp68.segment != 'move'
+		GROUP BY sp68.id
+), sp68_stop_points_in_nearest_exh_buffers AS (
+		SELECT 68 as person_id, sp68.id as point_id, sp68.geom, sp68.timestamp, eb.id as exh_id, st_distance(sp68.geom, st_centroid(eb.geom)) as distance_from_centroid
+		FROM trajectory_points_with_stops_68 AS sp68 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp68.geom, eb.geom)
+		JOIN sp68_min_distance_from_buffers AS sp68_min_dist ON sp68.id = sp68_min_dist.id
+		WHERE sp68_min_dist.min_distance = st_distance(sp68.geom, st_centroid(eb.geom))
+), person_tstop_points AS (
+    SELECT person_id, exh_id, tgeompoint_seq(array_agg(tgeompoint_inst(geom, timestamp) ORDER BY timestamp)) AS tpoint
+    FROM (
+        SELECT * FROM sp57_stop_points_in_nearest_exh_buffers 
+        UNION 
+        SELECT * FROM sp67_stop_points_in_nearest_exh_buffers
+        UNION
+        SELECT * FROM sp68_stop_points_in_nearest_exh_buffers
+    ) AS stop_points_in_nearest_exh_buffers
+    GROUP BY person_id, exh_id
+), exhibit_persons_over_time AS (
+    SELECT exh_id,  tcount(tpoint) as persons_over_time
+    FROM person_tstop_points
+    GROUP BY exh_id
+    ORDER BY exh_id
+)
+
+SELECT * FROM exhibit_persons_over_time
+
+
+-- PER CONFRONTO, DATI NON FILTRATI
+WITH number_of_person_over_time AS (
+    SELECT eb.id as id_exhibit, tcount(mt.trajectory) as persons_over_time
+    FROM museum_trajectories as mt
+    JOIN exhibits_on_tables_buffers_07m  as eb ON intersects(mt.trajectory, eb.geom)
+    GROUP BY eb.id
+    ORDER BY eb.id
+)
+SELECT np.id_exhibit, getvalue(unnest(instants(persons_over_time))) as number_of_persons, getTimestamp(unnest(persons_over_time)) as timestamp
+FROM number_of_person_over_time AS np

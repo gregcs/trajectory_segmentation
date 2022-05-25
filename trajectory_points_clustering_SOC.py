@@ -18,9 +18,16 @@ def classify_point_trajectories(data_path, to_save_path, eps , tau, undefined, m
             temp_df.at[point, 'segment'] = 'stop' + str(i)
     write_output_csv(temp_df, to_save_path)
 
-minimum_sampling_interval_p57 = 0.071
-(eps,tau) = eps_tau(0.85, minimum_sampling_interval_p57, 5)
+minimum_sampling_interval = 0.071
+(eps,tau) = eps_tau(0.85, minimum_sampling_interval, 5)
 undefined = 1.2 * eps
 min_mov = 0.5
+
 classify_point_trajectories('data/trajectory_points/trajectory_points_57.csv', 
-                                'data/trajectory_points_with_stops/trajectory_points_with_stops_57.csv', eps , tau, undefined, min_mov, True, 'person_57')
+                                'data/trajectory_segments_SOC/trajectory_points_with_stops_57.csv', eps , tau, undefined, min_mov, True, 'person_57')
+
+classify_point_trajectories('data/trajectory_points/trajectory_points_67.csv', 
+                                'data/trajectory_segments_SOC/trajectory_points_with_stops_67.csv', eps , tau, undefined, min_mov, True, 'person_67')
+
+classify_point_trajectories('data/trajectory_points/trajectory_points_68.csv', 
+                                'data/trajectory_segments_SOC/trajectory_points_with_stops_68.csv', eps , tau, undefined, min_mov, True, 'person_68')

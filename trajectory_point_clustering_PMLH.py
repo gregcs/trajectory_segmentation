@@ -16,6 +16,6 @@ def classify_point_trajectories(data_path, to_save_path, roaming_distance_delta 
                 df.at[point_index, 'medoid'] = True
     write_output_csv(df, to_save_path)
 
-roaming_distance_delta = 1
-stay_duration_delta = 10
+roaming_distance_delta = 0.5
+stay_duration_delta = 2.5
 traj_points = classify_point_trajectories('data/trajectory_points/trajectory_points_57.csv', 'data/trajectory_segments_PMLH/trajectory_segments_57.csv', roaming_distance_delta, stay_duration_delta)
