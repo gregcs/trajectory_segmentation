@@ -54,6 +54,13 @@ I real-time location systems utilizzati forniscono la posizione di un tag. In ba
 \end{itemize}
 Nel caso in analisi la posizione è espressa in coordinate con CRS ESPG 3003.\\[12pt]
 Si parla in particolare di registrazione \textbf{attiva} (Yu Zheng) quando l'entità tracciata partecipa direttamente all'attività di tracciamento tramite l'utilizzo di RTLS, come nel caso delle persone in analisi.
+\subsection{Paradigma di data mining su traiettorie}
+L'operazione relativa all'estrarre informazioni che arricchiscano la conoscenza del dominio di un problema prende il nome di \textit{data mining}. Una possibile organizzazione di tutte le operazioni presenti in letteratura è specificata nella seguente figura, che presenta un paradigma per il \textit{trajectory data mining}.
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/datamining.jpg}
+\end{figure}
+\FloatBarrier
 \subsection{Analisi del dataset}
 Il dataset fornito contiene i dati relativi alle esposizioni di un museo (Figura 1) e relativi al tracciamento di 3 persone al suo interno (Figura 2).
 \\[12pt](Figura) (caption I dati sono stati forniti come shapefile ESRI e successivamente importati in QGIS, dando il risultato in figura)\\[12pt]
@@ -114,13 +121,6 @@ Date le traiettorie, gli obiettivi dell'analisi sono:
         \item Definita un'area, l'entità rimane all'interno di essa per un certo periodo di tempo
     \end{itemize}
 \end{definition}
-\subsection{Paradigma di data mining su traiettorie}
-L'operazione relativa all'estrarre informazioni che arricchiscano la conoscenza del dominio di un problema prende il nome di \textit{data mining}. Una possibile organizzazione di tutte le operazioni presenti in letteratura è specificata nella seguente figura, che presenta un paradigma per il \textit{trajectory data mining}.
-\begin{figure}[htb!]
-    \centering
-    \includegraphics[width=0.8\textwidth]{images/datamining.jpg}
-\end{figure}
-\FloatBarrier
 \newpage
 \section{Trajectory Preprocessing}
 L'operazione di stop point detection e l'operazione di segmentazione della traiettoria fanno parte di quelle operazioni eseguite prima di effettuare ulteriori analisi sul dataset che vengono chiamate di \textit{trajectory preprocessing}:
