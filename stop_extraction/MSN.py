@@ -20,6 +20,7 @@ class MSNTrajcetorySegmentator:
     def move_stop_noise_segmentation(self):
         distance_outliers = []
         mzs_distance = self.__modified_zscore(self.series['distance'])
+        print(f"std mzs distance: {mzs_distance.std()}")
         for i in range(len(mzs_distance)):
             if mzs_distance[i] > self.ths_dis:
                 distance_outliers.append(i)
@@ -37,6 +38,7 @@ class MSNTrajcetorySegmentator:
         duration = clean_series['duration'] + random.uniform(-self.rho, self.rho)
         duration_outliers = []
         mzs_duration = self.__modified_zscore(duration)
+        print(f"std mzs duration: {mzs_duration.std()}")
         for i in mzs_duration.index:
             if mzs_duration[i] > self.ths_dur:
                 duration_outliers.append(i)
@@ -44,6 +46,7 @@ class MSNTrajcetorySegmentator:
         speed = ln(clean_series['speed'])
         speed_outliers = []
         mzs_speed = self.__modified_zscore(speed)
+        print(f"std mzs speed: {mzs_speed.std()}")
         for i in mzs_speed.index:
             if mzs_speed[i] < -self.ths_speed:
                 speed_outliers.append(i)

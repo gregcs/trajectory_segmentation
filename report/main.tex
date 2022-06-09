@@ -3,188 +3,1865 @@
 \usepackage{graphicx}
 \usepackage[section]{placeins}
 \usepackage{amsmath}
+\usepackage{amsfonts} 
 \usepackage{enumitem}
-\usepackage{subfigure}
 \usepackage{listings}
 \usepackage{hyperref}
 \usepackage{tcolorbox}
+\usepackage[ruled, italiano, linesnumbered]{algorithm2e}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{tikz}
+
+\bibliographystyle{plain}
 
 \tcbuselibrary{theorems}
-
-\newtcbtheorem[number within = section]{definition}{\emph{Definition }}{colback = gray!10, colframe = gray!50!black, fonttitle = \bfseries}{th}
+\newtcbtheorem[number within = section]{definition}{\emph{Defionizione}}{colback = gray!10, colframe = gray!50!black, fonttitle = \bfseries}{th}
 \newtcbtheorem[]{theorem}{\emph{Theorem }}{colback = gray!10, colframe = gray!50!black, fonttitle = \bfseries}{th}
 
-\title{Geospatial Data Management Project}
+\title{Progetto di Geospatial Data Management}
 \author{
-\begin{tabular}[t]{c@{\extracolsep{8em}}c} 
+\begin{tabular}[t]{c@{\extracolsep{6em}}c} 
 Giuseppe Maurizio Facchi  & Gregorio Ghidoli \\
-mat. 989910 & mat.  \\ 
+mat. 989910 & mat. 983827\\ 
 \end{tabular}
 }
 
 \date{A.A. 2021-2022}
 
 \begin{document}
+
 \maketitle
+
 \newpage
 \tableofcontents
+
 \newpage
 \section{Introduzione}
-\begin{definition}{Traiettoria}{}
-    Una traiettoria è una traccia generata da un oggetto in movimento in spazi geografici, di solito rappresentata da una serie di punti cronologicamente ordinati $$p_1 \rightarrow p_2 \rightarrow \dots \rightarrow p_n$$ dove ogni punto consiste in una coppia di coordinate geografiche associate ad un timestamp $$p=(x,y,t)$$
-\end{definition}
-Le traiettorie offrono la possibilità di estrarre informazioni da oggetti in movimento, come animali, veicoli o persone.\\
-In base alla natura dei dati è possibile classificare le tipologie di dati relative a traiettorie in 4 possibili gruppi (Yu Zheng):
-\begin{itemize}
-    \item \textbf{Mobilità di persone}
-    \item Mobilità di veicoli
-    \item Mobilità di animali
-    \item Mobilità di fenomeni naturali
-\end{itemize}
-Il dataset in analisi tratta dati relativi a mobilità di persone, dove 3 visitatori di un museo hanno visto registrare \textbf{attivamente} i loro movimenti per un certo periodo di tempo con un RTLS.
-\begin{definition}{RTLS}{}
-    Si definisce RTLS qualsiasi sistema (hardware + software) in grado di campionare accuratamente la posizione di un'entità in uno spazio definito ad un'alta frequenza.\\
-    RTLS non è uno specifico tipo di sistema, ma più un obiettivo che può essere raggiunto utilizzando vari sistemi (Damiani)
-\end{definition}
-I real-time location systems utilizzati forniscono la posizione di un tag. In base alle caratteristiche del sistema una posizione può indicare:
-\begin{itemize}
-    \item \textbf{Presenza} in un'area, espressa simbolicamente
-    \item \text{Posizione precisa}, espressa in coordinate
-    \item \text{Vicinanza} ad un altro tag, espressa come distanza o simbolicamente
-\end{itemize}
-Nel caso in analisi la posizione è espressa in coordinate con CRS ESPG 3003.\\[12pt]
-Si parla in particolare di registrazione \textbf{attiva} (Yu Zheng) quando l'entità tracciata partecipa direttamente all'attività di tracciamento tramite l'utilizzo di RTLS, come nel caso delle persone in analisi.
-\subsection{Paradigma di data mining su traiettorie}
-L'operazione relativa all'estrarre informazioni che arricchiscano la conoscenza del dominio di un problema prende il nome di \textit{data mining}. Una possibile organizzazione di tutte le operazioni presenti in letteratura è specificata nella seguente figura, che presenta un paradigma per il \textit{trajectory data mining}.
-\begin{figure}[htb!]
+Il progetto del corso di Geospatial Data Management dell'anno accademico 2021-2022 è volto a familiarizzare con l'analisi di traiettorie, un tipo di dato spazio-temporale.
+In particolare, sono state fornite tre traiettorie percorse all'interno di un museo da tre diverse persone, con l'obiettivo di:
+\begin{enumerate}
+    \item trovare i punti di fermata delle persone;
+    \item per ogni persona, calcolare per quanto tempo ha osservato ciascuna esibizione del museo, considerando solo i punti di fermata;
+    \item per ogni esibizione del museo, calcolarne il tempo totale di osservazione, considerando solo i punti di fermata delle persone nei loro pressi;
+    \item per ogni esibizione del museo, trovare il numero di persone che la osservano congiuntamente nel tempo.
+\end{enumerate}
+
+\section{Concetti generali}
+Prima di presentare il lavoro svolto per il progetto, introduciamo i concetti generali che possono aiutare a capire e a trattare il problema proposto.\\
+L’operazione relativa all’estrazione di informazioni che arricchiscono la conoscenza
+del dominio di un problema prende il nome di \emph{data mining}. Una possibile
+organizzazione delle operazioni presenti in letteratura nel caso del paradigma del \emph{trajectory data mining}, ovvero l'estrazione di informazioni dalle traiettorie, è specificata nella Figura \ref{trajectorydatamining}.
+\begin{figure}
     \centering
-    \includegraphics[width=0.8\textwidth]{images/datamining.jpg}
+    \includegraphics[width=0.6\textwidth]{images/datamining.jpg}
+    \caption{Paradigma del trajectory data mining descritto in \cite{TrajectoryDataMining}. Nella Figura sono evidenziate le fasi affrontate per lo svolgimento del progetto.}
+    \label{trajectorydatamining}
 \end{figure}
-\FloatBarrier
-\subsection{Analisi del dataset}
-Il dataset fornito contiene i dati relativi alle esposizioni di un museo (Figura 1) e relativi al tracciamento di 3 persone al suo interno (Figura 2).
-\\[12pt](Figura) (caption I dati sono stati forniti come shapefile ESRI e successivamente importati in QGIS, dando il risultato in figura)\\[12pt]
-Il tracciamento è stato effettuato per una durata di circa 10 minuti ad una frequenza di campionamento di circa 12 campioni/secondo (1 ogni 0.08 secondi). Una prima analisi è stata effettuata per ricavare le principali statistiche riguardanti le traiettorie di ogni persona, ottenendo i seguenti risultati:
-\begin{table}[!ht]
-    \centering
-    \begin{tabular}{|l|l|l|l|l|}
-        \multicolumn{5}{c}{\textbf{\textit{Persona 57}}}                                                                                                                                             \\
-        \cline{2-5}
-        \multicolumn{1}{l|}{} & \multicolumn{1}{c|}{\textbf{Distanza}} & \multicolumn{1}{c|}{\textbf{Durata}} & \multicolumn{1}{c|}{\textbf{Velocità}} & \multicolumn{1}{c|}{\textbf{Turning Angle}} \\
-        \hline
-        \textbf{Media}        & 0.040                                  & 0.085                                & 0.485                                  & 185.9                                       \\
-        \hline
-        \textbf{Mediana}      & 0.030                                  & 0.072                                & 0.374                                  & 182.0                                       \\
-        \hline
-        \textbf{Minimo}       & 0.000156                               & 0.0709                               & 0.00218                                & 0.01                                        \\
-        \hline
-        \textbf{Massimo}      & 0.575                                  & 0.179                                & 4.178                                  & 359.9                                       \\
-        \hline
-        \multicolumn{1}{l}{}  & \multicolumn{1}{l}{}                   & \multicolumn{1}{l}{}                 & \multicolumn{1}{l}{}                   & \multicolumn{1}{l}{}                        \\
-        \multicolumn{5}{c}{\textbf{\textit{Persona 67}}}                                                                                                                                             \\
-        \hline
-        \textbf{Media}        & 0.052                                  & 0.089                                & 0.613                                  & 176.8                                       \\
-        \hline
-        \textbf{Mediana}      & 0.039                                  & 0.072                                & 0.454                                  & 181.6                                       \\
-        \hline
-        \textbf{Minimo}       & 0.0006                                 & 0.071                                & 0.003                                  & 0.002                                       \\
-        \hline
-        \textbf{Massimo}      & 0.493                                  & 0.179                                & 6.226                                  & 359.9                                       \\
-        \hline
-        \multicolumn{1}{l}{}  & \multicolumn{1}{l}{}                   & \multicolumn{1}{l}{}                 & \multicolumn{1}{l}{}                   & \multicolumn{1}{l}{}                        \\
-        \multicolumn{5}{c}{\textbf{\textit{Persona 68}}}                                                                                                                                             \\
-        \hline
-        \textbf{Media}        & 0.045                                  & 0.087                                & 0.546                                  & 183.3                                       \\
-        \hline
-        \textbf{Mediana}      & 0.034                                  & 0.072                                & 0.417                                  & 183.2                                       \\
-        \hline
-        \textbf{Minimo}       & 0.00078                                & 0.071                                & 0.010                                  & 0.006                                       \\
-        \hline
-        \textbf{Massimo}      & 0.791                                  & 5.356                                & 10.988                                 & 359.9                                       \\
-        \hline
-    \end{tabular}
-    \caption{Dati aggregati relativi alle traiettorie delle persone}
-\end{table}
-\FloatBarrier
-Questi dati verranno utilizzati per inizializzare nel modo migliore gli algoritmi proposti.
-\subsection{Obiettivi}
-Date le traiettorie, gli obiettivi dell'analisi sono:
-\begin{itemize}
-    \item Trovare i punti di fermata delle persone (\textbf{stop points})
-    \item Data un'esibizione, calcolare il tempo di visita totale nei suoi pressi, considerando solo i punti di fermata
-    \item Trovare il numero di persone che in un certo periodo temporale si trovano nei pressi della stessa esibizione
-\end{itemize}
-\begin{definition}{Punto di Fermata - Stop Point}{}
+\begin{definition}{Traiettoria}{}
+    Una traiettoria rappresenta il movimento, ovvero l'evoluzione della posizione nel tempo, di un oggetto nel mondo reale (persona, animale, automobile, ecc...), detto anche \emph{moving object}, in uno spazio geografico durante un dato intervallo di tempo.
+    Tipicamente, una traiettoria viene rappresentata e memorizzata come una sequenza di punti cronologicamente ordinati $$p_1 \rightarrow p_2 \rightarrow \dots \rightarrow p_n,$$ dove ogni punto consiste in una coppia di coordinate geografiche associate ad un timestamp $$p_i=(x_i,y_i,t_i), i=0,\dots,n,x_i,y_i,t_i \in \mathbb{N}.$$
+\end{definition}
+Durante una traiettoria, il moving object può non cambiare la sua posizione, o cambiarla leggermente, per un determinato periodo di tempo, caratterizzando un punto di fermata.
+\begin{definition}{Punto di fermata - Stop Point}{}
     Viene generalmente definito "punto di fermata", un punto nel dominio spazio-temporale dove un'entità risulta essere stazionaria. Esistono tipicamente due condizioni di stazionarietà:
     \begin{itemize}
-        \item L'entità rimane ferma nello stesso punto per un certo periodo di tempo
-        \item Definita un'area, l'entità rimane all'interno di essa per un certo periodo di tempo
+        \item l'entità rimane ferma nello stesso punto per un certo periodo di tempo;
+        \item definita un'area, l'entità rimane all'interno di essa per un certo periodo di tempo.
     \end{itemize}
+    Dunque, visualizzando le traiettorie come sequenze di punti, i punti di fermata possono essere identificati da un gran numero di punti sparpagliati attorno a una posizione, oppure come un unico punto a cui è assegnato un elevato intervallo di tempo rispetto ai successivi.
+    \label{stop_point}
 \end{definition}
-\newpage
-\section{Trajectory Preprocessing}
-L'operazione di stop point detection e l'operazione di segmentazione della traiettoria fanno parte di quelle operazioni eseguite prima di effettuare ulteriori analisi sul dataset che vengono chiamate di \textit{trajectory preprocessing}:
-\begin{figure}[htb!]
-    \centering
-    \includegraphics[width=0.8\textwidth]{images/spd.jpg}
-\end{figure}
-\FloatBarrier
-\subsection{Stop points detection}
-In letteratura sono presenti diversi algoritmi per l'individuazione dei punti di fermata e conseguentemente per la segmentazione della traiettoria in diversi gruppi di stop. Per questo dataset sono stati presi in considerazione 3 algoritmi che seguono 3 diversi approcci:
+Questo comporamento è utile da individuare all'interno di una traiettoria in quanto può rappresentare un'attività importante svolta dal moving object, come fermarsi in un posto per mangiare o, nel caso di questo progetto, visitare un'esibizione di un museo.
+Da questa osservazione si può quindi pensare di estrarre dalla traiettoria le sequenze di movimento e le sequenze di fermata (\emph{stop}) tramite operazioni di \emph{preprocessing}, come \emph{stay point detection} e \emph{trajectory segmentation}.
+In questo modo si passa da una visione “piatta” della traietttoria a una visione arrichita di informazioni, ovvero le sequenze di movimento e di fermata, utili per future analisi o processi di \emph{trajectory pattern mining}, come individuare punti di interesse o comportamenti di affollamento.
+\begin{definition}{Sequenza}{}
+    Una sequenza è qualsiasi serie continua di punti in una traiettoria.
+\end{definition}
+Tipicamente, le sequenze di movimento sono caratterizzate dal fatto che il moving object mantiene una velocità relativamente sostenuta coprendo distanze relativamente lunghe in brevi intervalli di tempo, mentre nelle sequenze di stop mentiene velocità molto basse, anche pari a zero, coprendo distanze molto brevi in intervalli di tempo relativamente lunghi
+\footnote{Nelle analisi bisogna fare attenzione a non identificare come sequenze di stop le sequenze in cui il movimento è molto lento ma scorrevole (lineare) o fermate momentanee di brevissima durata.}.\\
+Tuttavia, l'inevitabile presenza di rumore all'interno dei dati spazio-temporali relativi a traiettorie complica l'estrazione di sequenze significative e l'analisi di queste ultime.
+Il rumore è dovuto a errori di misurazione e di campionamento nei sistemi di acquisizione di dati spazio-temporali, chiamati sistemi RLTS, e porta ad avere una deviazione dei punti della traiettoria dalla reale posizione del moving object.
+\begin{definition}{Rumore della traiettoria - Noise}{}
+Il rumore della traiettoria (\emph{noise}) è la deviazione dei punti di una traiettoria dalla posizione reale del moving object, dovuta a errori di misurazione e campionamento.
+\end{definition}
+\begin{definition}{Real-Time Location System - RTLS}{}
+    Si definisce Real-Time Location System (RTLS) qualsiasi sistema, hardware e software, in grado di campionare accuratamente ad alta frequenza la posizione di un'entità in uno spazio definito.\\
+    Gli RTLS forniscono la posizione di un tag e, in base alle loro caratteristiche, una posizione può indicare:
+    \begin{itemize}
+        \item la \text{presenza} in un'area, espressa simbolicamente;
+        \item la \text{posizione precisa}, espressa in coordinate;
+        \item la \text{vicinanza} ad un altro tag, espressa come distanza o in modo simbolico.
+    \end{itemize}
+    Quando l'entità di cui si acquisisce la posizione partecipa direttamente all'attività di tracciamento tramite l'utilizzo di RTLS, allora si parla di \textbf{registrazione attiva}.
+\end{definition}
+Per l'estrazione di sequenze di stop, nel progetto abbiamo codificato e utilizzato tre algoritmi proposti in letteratura e che seguono approcci diversi:
 \begin{itemize}
-    \item Slgoritmo basato su time-space threshold
-          %(https://www.researchgate.net/publication/221607181_Project_Lachesis_Parsing_and_Modeling_Location_Histories)
-    \item Algoritmo basato su clustering
-          %(https://www.mdpi.com/2220-9964/5/3/29)
-    \item Algoritmo basato su modelli probabilistici
-          %(https://periodicos.ufmg.br/index.php/jidm/article/view/418)
+    \item un algoritmo basato su \emph{time-space threshold} (\emph{PMLH}), presentato in \cite{SpaceTimeTreshold};
+    \item un algoritmo di clustering di sequenze (\emph{SOC}) \footnote{Sebbene il clustering sia una tecnica di data mining, in questo progetto viene usato come tecnica di preprocessing per l'estrazione di sequenze di stop.}, presentato in \cite{SequenceClustering};
+    \item un algoritmo basato su un approccio statistico (\emph{MSN}), presentato in \cite{Statistical}.
 \end{itemize}
-\subsubsection{Algoritmo basato su time-space threshold}
-\subsubsection{Algoritmo basato su clustering}
-\subsubsection{Algoritmo basato su modelli probabilistici}
-\subsubsection{Confronto tra gli algoritmi}
-\newpage
-\section{Trajectory Pattern Mining}
-Un importante punto di analisi riguarda il trajectory pattern mining, ovvero l'estrazione di pattern che arricchiscano l'informazione contenuta in una traiettora. Lo scoprire gruppi di persone che si muovono insieme per un certo periodo di tempo ne è un tipico esempio e prende il nome di \textit{moving together pattern}:
+
+\section{Analisi del dataset}
+Il dataset fornito contiene le traiettorie percorse all'interno di un museo da tre diversi visitatori, la cui posizione è stata registrata attivamente per un intervallo di tempo di circa 10 minuti ad una frequenza di compionamento di circa $12Hz$.
+In aggiunta, sono stati forniti due shapefile ESRI contenenti rispettivamente le geometrie dei tavoli del museo e le geometrie delle esposizioni.
+La posizione dei punti tracciati e delle geometrie è rappresentata secondo l'ESPG 3003.
+Per visualizzare i tavoli, le esibizioni e le traiettorie abbiamo utilizzato QGIS, ottenendo la Figura \ref{tables_with_exhibits} e la Figura \ref{tables_with_exhibits_and_trajectories}.
+
 \begin{figure}[htb!]
     \centering
-    \includegraphics[width=0.8\textwidth]{images/mtp.jpg}
+    \begin{subfigure}[b]{0.4\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/tables_with_exhibits.png}
+        \caption{Tavoli del museo con le esposizioni numerate.}
+        \label{tables_with_exhibits}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.4\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/tables_with_exhibits_and_trajectories.png}
+        \caption{Traiettorie rappresentate come sequenze di punti.}
+        \label{tables_with_exhibits_and_trajectories}
+    \end{subfigure}
+    \hfill
+    \caption{}
 \end{figure}
-\FloatBarrier
-\subsection{Obiettivo 2}
-Partendo dai punti di stop è possibile seguire due differenti approcci per calcolare il tempo totale di visita per ogni esibizione:
-\paragraph{Approccio 1} Assegnare ad ogni stop point l'esibizione più vicina considerando il suo centroide, presneta ambiguità per punti tra le intersezioni dei buffer delle exhibit
+
+Per ottenere una rappresentazione succinta delle traiettorie abbiamo calcolato le statistiche contenute nella Tabella \ref{trajectories_aggregates_informations}.
+Ci siamo serviti di questi dati aggregati principalmente per avere una linea guida su come impostare i parametri degli algoritimi utilizzati.
+
+\begin{table}[!ht]
+    \centering
+    \begin{tabular}{cccc}
+    \multicolumn{4}{c}{\textit{\textbf{Persona 57}}}                                                                                                                \\ \cline{2-4} 
+    \multicolumn{1}{c|}{}                  & \multicolumn{1}{c|}{\textbf{Distanza}} & \multicolumn{1}{c|}{\textbf{Durata}} & \multicolumn{1}{c|}{\textbf{Velocità}} \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Media}}   & \multicolumn{1}{c|}{0.0403}            & \multicolumn{1}{c|}{0.085}           & \multicolumn{1}{c|}{0.4852}            \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Mediana}} & \multicolumn{1}{c|}{0.0307}            & \multicolumn{1}{c|}{0.072}           & \multicolumn{1}{c|}{0.3743}            \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Minimo}}  & \multicolumn{1}{c|}{0.0002}            & \multicolumn{1}{c|}{0.071}           & \multicolumn{1}{c|}{0.0022}            \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Massimo}} & \multicolumn{1}{c|}{0.5754}            & \multicolumn{1}{c|}{0.179}           & \multicolumn{1}{c|}{4.1787}            \\ \hline
+                                           &                                        &                                      &                                        \\
+    \multicolumn{4}{c}{\textit{\textbf{Persona 67}}}                                                                                                                \\ \cline{2-4} 
+    \multicolumn{1}{c|}{}                  & \multicolumn{1}{c|}{\textbf{Distanza}} & \multicolumn{1}{c|}{\textbf{Durata}} & \multicolumn{1}{c|}{\textbf{Velocità}} \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Media}}   & \multicolumn{1}{c|}{0.052}             & \multicolumn{1}{c|}{0.089}           & \multicolumn{1}{c|}{0.6134}            \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Mediana}} & \multicolumn{1}{c|}{0.0389}            & \multicolumn{1}{c|}{0.072}           & \multicolumn{1}{c|}{0.454}             \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Minimo}}  & \multicolumn{1}{c|}{0.0006}            & \multicolumn{1}{c|}{0.071}           & \multicolumn{1}{c|}{0.003}             \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Massimo}} & \multicolumn{1}{c|}{0.4939}            & \multicolumn{1}{c|}{0.179}           & \multicolumn{1}{c|}{6.2258}            \\ \hline
+                                           &                                        &                                      &                                        \\
+    \multicolumn{4}{c}{\textit{\textbf{Persona 68}}}                                                                                                                \\ \cline{2-4} 
+    \multicolumn{1}{c|}{}                  & \multicolumn{1}{c|}{\textbf{Distanza}} & \multicolumn{1}{c|}{\textbf{Durata}} & \multicolumn{1}{c|}{\textbf{Velocità}} \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Media}}   & \multicolumn{1}{c|}{0.0454}            & \multicolumn{1}{c|}{0.088}           & \multicolumn{1}{c|}{0.5456}            \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Mediana}} & \multicolumn{1}{c|}{0.0343}            & \multicolumn{1}{c|}{0.072}           & \multicolumn{1}{c|}{0.4169}            \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Minimo}}  & \multicolumn{1}{c|}{0.0008}            & \multicolumn{1}{c|}{0.071}           & \multicolumn{1}{c|}{0.0108}            \\ \hline
+    \multicolumn{1}{|c|}{\textbf{Massimo}} & \multicolumn{1}{c|}{0.7911}            & \multicolumn{1}{c|}{5.356}           & \multicolumn{1}{c|}{10.9884}           \\ \hline
+    \end{tabular}
+    \caption{Statistiche relative alle traiettorie dei visitatori.}
+    \label{trajectories_aggregates_informations}
+\end{table}
+
+\section{Individuazione dei punti di fermata}
+Al giorno d'oggi, grazie alla diffusione di dispositivi come i ricevitori GPS, si hanno a disposizione grandi quantità di dati relativi a traiettorie.
+Questo tipo di dati sono utilizzati in diversi ambiti di ricerca, quali lo studio della mobilità personale, la gestione del trasporto urbano e l'analisi del comportamento umano e animale.
+Al fine di studiare al meglio questi problemi, è utile individuare accuratamente informazioni semantiche sulle traiettorie originali, come le sequenze di movimento e di fermata.
+Come descritto in \cite{ReviewMethods}, le tecniche per l'estrazione di sequenze di stop presenti in letteratura si divono in tre classi: metodi basati su \emph{time-distance treshold}, algoritmi di clustering basati sulla densità e metodi basati su approcci statistici.
+Sono ancora ambito di ricerca i nuovi approcci, ad esempio \cite{ReviewMethods}, che considerano gli elementi geografici in prossimità delle traiettorie, tra i quali figurano i \emph{point of interest} (POI), per un'estrazione delle sequenze più precisa.
+Per questo progetto abbiamo implementato e sperimentato l'utilizzo di tre algoritmi, ciascuno appartenente a una delle diverse categorie. Dopo aver confrontato i risultati, abbiamo deciso di proseguire le analisi con gli esiti dell'algoritmo di clustering.
+
+\subsection{Algoritmo basato su time-space threshold}
+In \cite{SpaceTimeTreshold} viene descritto l'Algoritmo \ref{PMLH}, da noi identificato come PMLH, appartenente alla categoria dei metodi basati su time-space threshold.
+PMLH, infatti, considera solamente la dimensione spaziale e temporale delle traiettorie, senza prenedere in considerazione altri eventuali parametri, come la velocità del moving object, o l'inevitabile presenza di rumore nei dati.
+L'algoritmo identifica sequenze continue di punti che rimangono dentro una certa distanza per almeno un periodo di tempo fissato .
+La funzione \emph{diameter} calcola la distanza più grande tra ogni elemento di un insieme, mentre la funzione \emph{memoid} identifica la posizione del punto in una sequenza che minimizza la massima distanza da ogni altro punto della stessa, ovvero il punto più vicino al centro della sequenza.
+L'algoritmo restituisce un insieme di tuple  $s_i=(seq_i, t_i^{start}, t_i^{end})$. Partendo da questo insieme è facile classificare i punti della traiettoria in base all'appartenenza o meno degli stessi alle fermate identificate dai memoidi $seq_i$, verificando che il timestamp di un punto sia compreso tra $t_i^{start}$ e $t_i^{end}$.
+
+\paragraph{Descrizione dei parametri}
+\begin{itemize}
+    \item  Roaming distance, $\Delta l_{roam}$: rappresenta la massima distanza a cui un punto $p_i$ può stare da un altro punto $p_j$ per poter essere considerato come facente parte della fermata di $p_j$;
+    \item  Stay duration, $\Delta t_{dur}$: rappresenta la minima durata per cui il moving object deve stare entro la roaming distance di un punto $p$ per poter considerare il punto $p$ come facente parte di una fermata.
+\end{itemize}
+\paragraph{Complessità computazionale} La complessità computazionale di PMLH è $O(n^2)$, dove $n$ è il numero di punti che compongono la traiettoria.\\
+
+\begin{algorithm}
+    \caption{PMLH}\label{PMLH}
+    \KwData{$trajPoints = \{p_1, \dots p_n\}, \Delta l_{roam}, \Delta t_{dur} $}
+    \KwResult{$S = \{s_1,\dots,s_k\}$, $s_i=(seq_i, t_i^{start}, t_i^{end})$ dove $seq_i$ è una sequenza in $trajPoints$}
+    $i = 0, S = \emptyset$\;
+    \While{$i<|trajPoints|$}{
+        $j^* = \min j\;s.t.\;p_j \ge p_i + \Delta t_{dur}$\; 
+        \eIf{$diameter(i,j*) > \Delta l_{roam}$}
+        {$i = i + 1$\;}
+        {$j^* = \max j\;s.t.\;diameter(i, j) \le \Delta l_{roam}$\; 
+        $S = S \cup (medoid (i, j^*), t_i, t_{j^*})$\;
+        $i = j^* + 1$\;}
+    }
+\end{algorithm}
+
+\subsection{Algoritmo di clustering di sequenze}
+In letteratura sono presenti diversi metodi per la segmentazione di traiettorie che identificano i punti o le sequenze di stop facendo considerazioni sul cambio di profilo della velocità e della direzione del moving object quando questo passa da uno stato di movimento a uno stato di fermata.
+Un'altro approccio per affrontare il problema consiste nell'uso di tecniche di data-mining, come gli algoritmi di clustering basati sulla densità dove, tra quelli specializzati per i dati spazio-temporali, si annoverano CB-SMoT, T-OPTICS e TrajDBSCAN.
+Tuttavia, questi approcci non forniscono buoni risultati quando si ha un elevato rumore nei dati e, inoltre, non determinano come fermate i singoli punti, chiamati \emph{big point}, a cui è associato un elevato intervallo di tempo.
+Un buon algoritmo di clustering deve ridurre il più possibile la creazione di veri negativi, come le sequenze di stop non individuate o le sequenze di stop separate dal rumore, e il numero di falsi positivi, come le sequenze di movimento molto lento e di forma lineare, cercando quindi di incrementare il rapporto di sequenze di stop effettive individuate.
+A questo proposito è stato proposto l'algoritmo Sequence Oriented Clustering (SOC), descritto in \cite{SequenceClustering}, che permette di determinare i punti di rumore come facenti parte delle sequenze di stop, queste aventi forma arbitraria, e di individuare i big point.\\\\
+SOC è basato su altri due algoritmi di clustering basati sulla densità: DBSCAN e OPTICS, dove quest'ultimo è una generalizzazione del primo.
+DBSCAN, come la sua estensione ST-DBSCAN per il clustering di dati spazio-temporali, forma i cluster basandosi sulla nozione di \emph{density-reachability}.
+Un punto $p$ è chiamato \emph{core-point} se il vicinato di $p$ contiene un numero $minPts$ di altri punti entro un dato raggio \emph{eps}.
+Un punto $q$ si dice \emph{directly density-reachable} da $p$ se $q$ è nel vicinato di $p$.
+Un punto $q$ si dice \emph{density-reachable} da $p$ se $q$ è collegato a $p$ da una catena di punti tale per cui ciascun punto è \emph{directly density-reachable} al successivo.
+DBSCAN scansiona ciascun punto $p$ una volta e, se $p$ è un core-point, viene creato un nuovo cluster.
+Il cluster viene poi espanso ricorsivamente aggiungendo i punti density-reachable dai punti già appartenenti al cluster.\\
+Mentre DBSCAN si basa su singoli core-point, l'algoritmo SOC è orientato al clustering di sequenze.
+Dall'osservazione che una fermata è costituita da punti tra loro vicini nello spazio e che questi coprono un intervallo temporale relativamente lungo, SOC estrae le sequenze di fermata all'interno di una traiettoria basandosi sul concetto di \emph{core-sequence}: sequenza in cui il moving object rimane in un'area piccola per un lungo periodo di tempo.
+Una \emph{eps-sequence} di un punto $p$ è la massima sequenza che contiene $p$ e in cui la distanza (euclidea) tra $p$ e tutti gli altri punti della sequenza è minore di un valore \emph{eps} fissato: $eps$ è il raggio di un'area circolare.
+Una \emph{core-sequence} è una sequenza che contiene un punto $p$ per cui la sequenza è una eps-sequence di $p$ e l'intervallo temporale della sequenza è maggiore o uguale a un valore \emph{tau} fissato: quindi il clustering è basato su una densità che tiene conto sia della prossimità spaziale che della continuità e durata nel tempo.
+Un \emph{core-point} è un punto per cui la sua eps-sequence è una core-sequence.
+La \emph{core-distance} di un punto $p$ è il minimo raggio $r$ minore di $esp$ tale per cui la r-sequence è una core-sequence se la eps-sequence di $p$ è una core-sequence, altrimenti è un valore UNDEFINED predefinito: rappresenta la vicinanza spaziale di un punto ai suoi vicini considerando il tempo, ad esempio è zero nel caso di un big point.
+La \emph{reachability-distance} di un punto $p$ è calcolata come segue:
 \begin{enumerate}
-    \item Creo buffer delle exhibit e calcolo il centroide
-    \item Assegno ogni stop point all'exhibit più vicina in base alla distanza minima tra stop point e centroide di ogni exhibit
-    \item Calcolo del visiting time per ogni exhibit
+    \item si controllano $p$ e i punti che precedono $p$;
+    \item si trova il punto $q$ precedente e più prossimo a $p$ nella traiettoria tale per cui $p$ appartiene alla core-sequence di $q$;
+    \item se $q$ esiste, allora la reachability-distance è il massimo tra la core distance di $q$ e la distanza tra $p$ e $q$;
+    \item se non esiste, allora la reachability-distance è UNDEFINED.
 \end{enumerate}
-\paragraph{Approccio 2} Assegnare ogni stop point al centroide degli stop points dello stesso segment
+Una \emph{eps-reachability sequence} è una sequenza di punti tale per cui la reachability distance di ciascun punto è minore o uguale di \emph{eps} e la reachability-distance del punto che precede la sequenza nella traiettoria e del punto che segue la sequenza nella traiettoria è maggiore di \emph{eps}.\\
+Le eps-reachability sequence rappresentano quindi sequenze che si sovrappongono o si incontrano nel tempo.
+Una volta calcolata la reachability-distance di ciascun punto, si possono estrarre le eps-reachability sequence e considerarle come sequenze di stop.
+Tuttavia, alcune sequenze di stop succesive possono essere state erroneamente interrotte da punti di noise.
+Per far fronte a questo problema vengono usati due criteri per confrontare eps-reachability sequence successive e nel caso unirle:
 \begin{enumerate}
-    \item Creo buffer delle exhibit e calcolo il centroide
-    \item Calcolo i centroidi del convex hull di ogni segmento di stop points
-    \item Considero solo i centroidi che intersecano il buffer delle exhibit e ne calcolo la distanza dal centroide di ogni exhibit
-    \item Filtro i risultati ottenuti mantenendo solo le coppie ($C_{sps}$, $C_{exh}$) che presentano la distanza minima
-    \item Assegno ad ogni segment l'esibizione più vicina, ottenendo quindi per ogni stop point l'esibizione a cui si riferisce
-    \item Calcolo del visiting time per ogni exhibit
+    \item il primo permette di unire due eps-reachability sequence se queste sono vicine in spazio e separate da un periodo di tempo troppo breve per essere considerato un tempo di movimento ragionevole: si usa un parametro $minMov$ che indica la durata minima di un movimento normale.
+    \item il secondo permette di unire due eps-reachability sequence se i convex-hull delle stesse si intersecano e se sono separate da un periodo di tempo troppo breve per essere considerato un tempo di movimento ragionevole.
 \end{enumerate}
-\subsection{Obiettivo 3}
-Per trovare il numero di persone che in un certo periodo temporale si trovano nei pressi della stessa esibizione è stato utilizzato MobilityDB (ref).\\
-In particolare:
-\paragraph{Approccio 1}
+Applicando questi criteri, una eps-reachability sequence cresce fino a quando nessun'altra sequenza può essere unita \footnote{Quando si uniscono due esp-reachability sequence si aggiungono alla sequenza anche i punti di noise intermedi. La reachability distance di questi nodi viene aggiornata al valore $eps$.}.
+Tali sequenze vengono chiamate \emph{Ful-reachability sequence}. Le Ful-reachability sequence possono terminare con punti che non fanno parte della sequenza di stop ma che sono raggiungibili dall'ultimo core-point della Ful-reachability sequence.
+In questo caso la Ful-reachability sequence viene potata facendola terminare con un core-point e ottenendo così una sequenza di stop.
+SOC è in grado di generare sequenze di stop, quest'ultime di forma arbitraria, tra cui sequenze di forma lineare che non rappresentano una fermata effettiva ma un movimento lento.\\
+Come ultimo passo dell'algoritmo, vengono quindi filtrate le sequenze di stop false positive per cui gli indici di \emph{straightness} e \emph{centered-distance} presentati in \cite{SequenceClustering} superano una certa soglia.
+
+\paragraph{Descrizione dei parametri} 
+\begin{itemize}
+    \item $eps$ rappresenta il raggio per definire una core-sequence;
+    \item $tau$ rappresenta la durata minima per definire una core-sequence;
+    \item UNDEFINED rappresenta un valore di default per la reachability distance dei punti della traiettoria: seguendo quanto descritto \cite{SequenceClustering} viene impostato a $1.2*eps$;
+    \item $minMov$ rappresenta la minima durata che un movimento deve avere per essere considerato un movimento normale: viene usato per unire le eps-reachability sequence;
+    \item le misure di straightness e di centered-distance vengono usate per filtrare i falsi positivi: seguendo quando descritto in \cite{SequenceClustering} vengono impostati ai valori di default, rispettivamente $0.5$ e $2*eps$.
+\end{itemize}
+La struttura dei cluster è influenzata dal rapporto $\frac{eps}{tau}$.
+Diminuendo il valore di $eps$ si restringono le condizioni per identificare le core-sequence, quindi le eps-reachability sequence diminuiscono in dimensione e in numero.
+Per questo motivo è più probabile ottenere meno sequenze false-positive ma più sequenze vere-negative. 
+Diminuendo il valore di $tau$ si rilassano le condizioni per identificare le core-sequence, quindi  le eps-reachability sequence aumentano in dimensione e in numero.
+Per questo motivo è più probabile ottenere più sequenze false-positive ma meno sequenze vere-negative. 
+Tuttavia, dai risultati degli esperimenti in \cite{SequenceClustering}, risulta che $eps$ abbia maggiore influenza di $tau$ sull'identificazione delle sequenze e viene consigliato di impostare questi parametri in modo tale che il rapporto $2*\frac{eps}{tau}$ assuma valori relativamente piccoli.
+Infine, diminuendo il valore di $minMov$ si diminuisce la capacità di unire le esp-reachability sequence. 
+Il parametro $minMov$ deve essere grande abbastanza da eliminare l'influenza del rumore nelle traiettore, ma non troppo grande per evitare di identificare movimenti curvi come sequenze di stop. In generale, il valore di $minMov$ deve essere incrementato quando si ha un elevato numero di punti con rumore.
+
+\paragraph{Complessità computazionale} La complessità di SOC, come per DBSCAN e OPTICS, è $O(n*log\;n)$, , dove $n$ è il numero di punti che compongono la traiettoria.
+
+\begin{algorithm}
+\caption{SOC}\label{SOC}
+\KwData{$trajPoints, eps, tau, \mathrm{UNDEFINED}, minMov$}
+\KwResult{$stops = \{s_1,\dots,s_k\}$ dove $s_i$ è una sequenza in $trajPoints$}
+$\forall p \in trajPoints\;p.reachability\;distance = \mathrm{UNDEFINED}$\;
+\For{$i=1\;to\;|trajPoints|$}{
+ $seq$ = epsSequence($trajPoints, p_i, eps$)\;
+ \If{isCoreSequence($seq, tau$)}{
+    r = coreDistance($seq$)\;
+    \For{$j=i\;to\;|trajPoints|$}{
+        $p_j.reachability\;distance = max\{r, distance(p_i,p_j)\}$
+    }
+ }
+}
+epsReachabilitySeqs = extractSequences()\;
+stops = mergeSequences($minMov$)\;
+pruneStops(stops)\;
+falsePositiveRemove(stops)\;
+\end{algorithm}
+
+\subsection{Algoritmo basato su un approccio statistico}
+In \cite{SpaceTimeTreshold} viene trattata la segmentazione di traiettorie in segmenti di movimento, di fermata e di rumore, come un problema di identificazione di outlier.
+Per l'identificazione degli outlier in serie temporali, gli autori utilizzano la statistica \emph{modified z-score}, rappresentata nell'Equazione \ref{modifiedZScore}.
+Le costanti $0.6745$ e $1.4826$ servono per rendere le rispettive statistiche non deviate rispetto alla distribuzione normale.
+La scelta di utilizzare il modified z-score è motivata dalle scarse prestazioni delle misure di media e deviazione standard in presenza di outlier.
+\begin{equation} \label{modifiedZScore}
+    M_i = \frac{0.6745(x_i - \overline{x})}{\mathrm{MAD}},\;\;\mathrm{con}\;\mathrm{MAD} = 1.4826 \times median(Y_i - \widetilde{Y}) 
+\end{equation}
+Nell'articolo viene suggerito di trattare come outlier i punti che hanno un modified z-score in valore assoluto più grande di $3.5$ e viene proposto l'Algoritmo MSN \ref{MSN} per la segmentazione di traiettorie in segmenti di movimento, di fermata e di rumore.
+Per prima cosa, MSN rileva potenziali punti di rumore che hanno distanze relativamente lunghe.
+Successivamente, assume che un singolo angolo acuto nella traiettoria rappresenti un movimento di “tornare indietro”, mentre due angoli acuti consecutivi siano da considerare potenziali segmenti di rumore.
+Infine, dopo aver rimosso i punti di rumore, identifica i punti la cui durata è molto lunga e la velocità molto bassa \footnote{L'indice modified z-score dovrebbe essere applicato a dati normalmente distribuiti. Data la natura sbilanciata delle velocità, questa viene normalizzata applicando il logaritmo naturale al fine di ristabilire la simmetria.},  classificandoli come punti di stop \footnote{L'algoritmo non tiene conto che punti successivi con velocità inferiore alla soglia specificata possono rappresentare sequenze di movimento e non sequenze di fermata, ottenendo quindi dei falsi-positivi.}.
+
+\paragraph{Descrizione dei parametri}
+\begin{itemize}
+    \item $S_\tau, T_\tau, V_\tau, A_\tau$: rappresentano le serie di distanza, durata, velocità e angolo di sterzata, relative ai punti della traiettoria $\tau$;
+    \item $\epsilon_s, \epsilon_t, \epsilon_v$: rappresentano le soglie del modified z-score rispettivamente per la distanza, la durata e la velocità;
+    \item $\theta$: rappresenta l'angolo minimo di sterzata, usato per migliorare l'identificazione del rumore;
+    \item $\rho$: rappresenta i limiti dell'intervallo $[-\rho, \rho)$ da cui vengono estratti casualmente in modo uniforme i valori di jitter da aggiungere ai valori di $T_\tau$ per evitare di avere $MAD=0$. 
+\end{itemize}
+I valori dei parametri consigliati dagli autori sono: $\epsilon_s = 3.5, \epsilon_t = 3.5, \epsilon_v = 3.5, \theta = 45, \rho=0.5$.
+
+\paragraph{Complessità computazionale} La complessità di MSN è $O(n)$, dove $n$ è il numero di punti che compongono la traiettoria.
+
+\begin{algorithm}
+    \caption{MSN}\label{MSN}
+    \KwData{$S_\tau, T_\tau, V_\tau, A_\tau, \epsilon_s, \epsilon_t, \epsilon_v,\theta, \rho$}
+    \KwResult{$move\_indexes$, $stop\_indexes$, $noise\_indexes$}
+    $distance\_outliers = [], direction\_outliers = [], duration\_outliers = []$\;
+    $M_s = modifiedZScore(S_\tau, MAD_s, \overline{s})$\;
+    \For{$i=0\;to\;length(M_s)$}{
+        \If{$M_s[i]>\epsilon_s$}{
+            Appendi $i$ a $distance\_outliers$\;
+        }
+    }
+    \For{$i=0\;to\;length(A_\tau)$}{
+        \If{$A_\tau[i]<\theta\;and\;A_\tau[i+1]<\theta$}{
+            Appendi $i$ e $i+1$ a $direction\_outliers$\;
+            $i++$
+        }
+    }
+    $noise\_indexes = distance\_outliers \cup direction\_outliers$\;
+    $clean\_indexes = \tau \setminus \tau[noise\_indexes]$\;
+    $\tau = \tau[clean\_indexes]$\;
+    $T_\tau = T_\tau + \rho$\;
+    $M_t = modifiedZScore(T_\tau, MAD_t, \overline{t})$\;
+    \For{$i=0\;to\;length(M_t)$}{
+        \If{$M_t[i] > \epsilon_t$}{
+            Appendi $i$ a $duration\_outliers$\;
+        }
+    }
+    $V_\tau = ln\;V_\tau$\;
+    $speed\_outliers = []$\;
+    $M_v = modifiedZScore(V_\tau, MAD_v, \overline{v})$\;
+    \For{$i=0\;to\;length(M_v)$}{
+        \If{$M_v[i] < -\epsilon_v$}{
+            Appendi $i$ a $speed\_outliers$\;
+        }
+    }
+    $stop\_indexes = duration\_outliers \cap speed\_outliers$\;
+    $move\_indexes = clean\_indexes \setminus stop\_outliers$\;
+\end{algorithm}
+
+\newpage
+\subsection{Esperimenti}
+Come accennato in \cite{ReviewMethods}, la difficoltà principale negli algoritmi descritti precedentemente risiede nell'impostare correttamente i valori dei parametri.
+Inoltre, i valori di default proposti negli articoli citati fanno riferimento a punti registrati da ricevitori GPS in ambienti outdoor e alcuni di questi vanno quindi adattati al contesto di questo progetto.
+Analizzando la Figura \ref{tables_with_exhibits_and_trajectories} si vede come le possibili fermate siano costituite da punti racchiusi in aree circolari con raggio di circa 1 metro. 
+Per questo motivo, in accordo con la Definizione \ref{stop_point}, abbiamo impostato a $1$ i parametri relativi all'area da considerare per identificare eventuali punti di fermata.
+In particolare, abbiamo eseguito i seguenti esperimenti:
+\begin{itemize}
+    \item esecuzione dell'algoritmo PMLH impostando il parametro $\Delta l_{roam}=1$ e il parametro $\Delta t_{dur} \in \{20,30\}$, ottenendo i risultati in Figura \ref{stop_points_PMLH};
+    \item esecuzione dell'algoritmo SOC impostando il parametro $eps=1$, il parametro $tau \in \{20,30\}$ e il parametro $minMov = 0.5$, ottenendo i risultati in Figura \ref{stop_points_SOC};
+    \item esecuzione dell'algoritmo MSN impostando il parametro $\epsilon_s = 3*\sigma_{M_{S_\tau}}$, il parametro $\epsilon_t = \sigma_{M_{T_\tau}}$,  il parametro $\epsilon_v = \sigma_{M_{V_\tau}}$, il parametro $\theta=45$ e il parametro $\rho=0.0001$, ottenendo i risultati in Figura \ref{stop_segments_MSN}.
+\end{itemize}
+PMLH, oltre ad avere una complessità computazionale maggiore di SOC e di MSN, restituisce risultati meno precisi in quanto non tratta minimamente il problema della presenza di rumore nei dati: identifica infatti molte più fermate di SOC, tra le quale ve ne sono molte false-positive.
+MSN invece, secondo \cite{Statistical}, non è un algoritmo congeniale nel caso in cui i dati vengono campionati a frequenza regolare e non fornisce un risultato adatto per le successive analisi: esegue infatti una segmentazione delle triettorie e non una classificazione dei punti.
+Infine SOC, oltre ad avere una buona complessità computazionale, da riscontro grafico sembra individuare sequenze di stop sensate.
+Per questi motivi, abbiamo deciso di proseguire le analisi con i risultati forniti dall'algoritmo SOC eseguito con $tau=20$.
+\begin{figure}[htb!]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p57_PMLH_r1_s20.png}
+        \caption{Parametri: $\Delta l_{roam}$=1, $\Delta t_{dur}$=20. Fermate individuate: 19.}
+        \label{stop_points_p57_PMLH_r1_s20}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p57_PMLH_r1_s30.png}
+        \caption{Parametri: $\Delta l_{roam}$=1, $\Delta t_{dur}$=30. Fermate individuate: 11.}
+        \label{stop_points_p57_PMLH_r1_s30}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p67_PMLH_r1_s20.png}
+        \caption{Parametri: $\Delta l_{roam}$=1, $\Delta t_{dur}$=20. Fermate individuate: 17.}
+        \label{stop_points_p67_PMLH_r1_s20}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p67_PMLH_r1_s30.png}
+        \caption{Parametri: $\Delta l_{roam}$=1, $\Delta t_{dur}$=30. Fermate individuate: 8.}
+        \label{stop_points_p67_PMLH_r1_s30}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p68_PMLH_r1_s20.png}
+        \caption{Parametri: $\Delta l_{roam}$=1, $\Delta t_{dur}$=20. Fermate individuate: 14.}
+        \label{stop_points_p68_PMLH_r1_s20}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p68_PMLH_r1_s30.png}
+        \caption{Parametri: $\Delta l_{roam}$=1, $\Delta t_{dur}$=30. Fermate individuate: 8.}
+        \label{stop_points_p68_PMLH_r1_s30}
+    \end{subfigure}
+    \hfill
+    \caption{Punti di stop della persona 57 (a,b), della persona 67 (c,d) e dellla persona 68 (e,f), individuati con l'algoritmo PMLH.}
+    \label{stop_points_PMLH}
+\end{figure}
+
+\begin{figure}[htb!]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p57_SOC_eps1_tau20_minMov05.png}
+        \caption{Parametri: esp=1, tau=20, minMov=0.5. Fermate individuate: 6.}
+        \label{stop_points_p57_SOC_eps1_tau20_minMov05}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p57_SOC_eps1_tau30_minMov05.png}
+        \caption{Parametri: eps=1, tau=30, minMov=0.5. Fermate individuate: 2.}
+        \label{stop_points_p57_SOC_eps1_tau30_minMov05}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p67_SOC_eps1_tau20_minMov05.png}
+        \caption{Parametri: eps=1, tau=20, minMov=0.5. Fermate individuate: 5.}
+        \label{stop_points_p67_SOC_eps1_tau20_minMov05}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p67_SOC_eps1_tau30_minMov05.png}
+        \caption{Parametri: eps=1, tau=30, minMov=0.5. Fermate individuate: 3.}
+        \label{stop_points_p67_SOC_eps1_tau30_minMov05}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p68_SOC_eps1_tau20_minMov05.png}
+        \caption{Parametri: eps=1, tau=20, minMov=0.5. Fermate individuate: 5.}
+        \label{stop_points_p68_SOC_eps1_tau20_minMov05}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p68_SOC_eps1_tau30_minMov05.png}
+        \caption{Parametri: eps=1, tau=30, minMov=0.5. Fermate individuate: 3.}
+        \label{stop_points_p68_SOC_eps1_tau30_minMov05}
+    \end{subfigure}
+    \hfill
+    \caption{Punti di stop della persona 57 (a,b), della persona 67 (c,d) e dellla persona 68 (e,f), individuati con l'algoritmo SOC.}
+    \label{stop_points_SOC}
+\end{figure}
+
+
+\begin{figure}[htb!]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p57_MSN.png}
+        \caption{}
+        \label{stop_segments_p57_MSN}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.3\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p67_MSN.png}
+        \caption{}
+        \label{stop_segments_p67_MSN}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.3\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/stop_points_p68_MSN.png}
+        \caption{}
+        \label{stop_segments_p68_MSN}
+    \end{subfigure}
+    \hfill
+    \caption{Segmenti di stop della persona 57 (a), della persona 67 (b) e dellla persona 68 (c), individuati con l'algoritmo MSN.}
+    \label{stop_segments_MSN}
+\end{figure}
+
+\clearpage
+
+\section{Calcolo dei tempi di osservazione}\label{calcolo_tempi}
+Parte delle analisi eseguite sui risultati dell'algoritmo SOC riguardano il calcolo dei seguenti tempi di osservazione:
 \begin{enumerate}
-    \item Creo buffer delle exhibit e calcolo il centroide
-    \item Assegno ogni stop point all'exhibit più vicina in base alla distanza minima tra stop point e centroide di ogni exhibit
-    \item Tramite l'utilizzo della funzione $\text{tgeompoint\_seq}$, dai singoli punti sono state create le traiettorie come tipo nativo di MobilityDB
-    \item Sono stati raggruppati i risultati per persona ed exhibit contando il numero di persone che in un certo periodo temporale si trovano nei pressi della stessa esibizione
+    \item per ogni persona, calcolare per quanto tempo ha osservato ciascuna esibizione del museo, tenendo conto dei solo i punti di fermata;
+    \item per ogni esibizione del museo, calcolare il tempo totale di osservazione delle persone nei suoi pressi, tenendo conto solo dei punti di fermata.
 \end{enumerate}
-\paragraph{Approccio 2}
-\begin{enumerate}
-    \item Creo buffer delle exhibit e calcolo il centroide
-    \item Calcolo i centroidi del convex hull di ogni segmento di stop points
-    \item Considero solo i centroidi che intersecano il buffer delle exhibit e ne calcolo la distanza dal centroide di ogni exhibit
-    \item Filtro i risultati ottenuti mantenendo solo le coppie ($C_{sps}$, $C_{exh}$) che presentano la distanza minima
-    \item Tramite l'utilizzo della funzione $\text{tgeompoint\_seq}$, dai singoli punti sono state create le traiettorie come tipo nativo di MobilityDB
-    \item Sono stati raggruppati i risultati per persona ed exhibit contando il numero di persone che in un certo periodo temporale si trovano nei pressi della stessa esibizione
-\end{enumerate}
+Nelle analisi abbiamo considerato le seguenti assunzioni:
+\begin{itemize}
+    \item un visitatore osserva un'esibizione se si trova a una distanza di al più 0.7 metri dalla stessa;
+    \item un visitatore, dopo aver visitato un'esibizione, non torna a visitarla in un secondo momento.
+\end{itemize}
+Come prima cosa abbiamo creato dei buffer di raggio $0.7$ metri intorno alle geometrie delle esibizioni, come mostrato in Figura \ref{tables_with_exhibits_buffer}, per poter tenere nelle analisi solo dei punti che intersecano tali buffer.
+Successivamente, abbiamo disambiguato l'esibizione a cui fanno riferimento i punti che intersecano due o più esibizioni, considerando l'esibizione che ha distanza punto-centroide dell'esibizione più corta.
+Poi, abbiamo calcolato i tempi di visita relativi a ciascun visitatore e i tempi totali di visita delle esibizioni, ottenendo i risultati in Tabella \ref{persons_time_visiting} e in Tabella \ref{exhibits_time_visiting}.
+Infine, per tener conto anche della presenza di rumore nei dati, abbiamo ripetuto le analisi considerando tutti i punti di tutti i cluster i cui centroidi intersecano i buffer delle esibizioni, ottenendo i risultati in Tabella \ref{persons_time_visiting_cluster} e in Tabella \ref{exhibits_time_visiting_cluster}.
+
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.35\textwidth]{images/tables_with_exhibits_buffer.png}
+    \caption{Buffer di raggio 0.7 delle esibizioni.}
+    \label{tables_with_exhibits_buffer}
+\end{figure}
+
+    \begin{table}[!ht]
+        \centering
+        \begin{tabular}{|c|c|c|}
+        \hline
+        \textbf{Visitatore} & \textbf{Esibizione} & \textbf{Tempo di visita} \\ \hline
+        57                  & 2.00                & 18.75                    \\ \hline
+        57                  & 3.00                & 15.07                    \\ \hline
+        57                  & 9.00                & 39.20                    \\ \hline
+        57                  & 10.00               & 284.75                   \\ \hline
+        57                  & 11.00               & 0.07                     \\ \hline
+        57                  & 12.00               & 15.25                    \\ \hline
+        57                  & 13.00               & 4.82                     \\ \hline
+        57                  & 29.00               & 24.07                    \\ \hline
+        57                  & 30.00               & 20.74                    \\ \hline
+        67                  & 3.00                & 37.24                    \\ \hline
+        67                  & 9                   & 5.85                     \\ \hline
+        67                  & 10                  & 310.78                   \\ \hline
+        67                  & 11                  & 8.25                     \\ \hline
+        67                  & 29                  & 2.86                     \\ \hline
+        67                  & 30                  & 30.53                    \\ \hline
+        67                  & 31                  & 17.10                    \\ \hline
+        68                  & 3                   & 2.43                     \\ \hline
+        68                  & 6                   & 0.07                     \\ \hline
+        68                  & 10                  & 204.66                   \\ \hline
+        68                  & 11                  & 116.69                   \\ \hline
+        68                  & 12                  & 0.86                     \\ \hline
+        68                  & 13                  & 17.46                    \\ \hline
+        68                  & 30                  & 2.32                     \\ \hline
+        68                  & 31                  & 45.70                    \\ \hline
+        68                  & 35                  & 0.57                     \\ \hline
+        68                  & 36                  & 4.14                     \\ \hline
+    \end{tabular}
+    \caption{Tempo di visita delle esibizioni per ciascun visitatore.}
+    \label{persons_time_visiting}
+    \end{table}
+        
+    \begin{table}[!ht]
+        \centering
+        \begin{tabular}{|c|c|c|}
+        \hline
+        \textbf{Visitatore} & \textbf{Esibizione} & \textbf{Tempo di visita} \\ \hline
+        57                  & 2.00                & 24.17                    \\ \hline
+        57                  & 3.00                & 7.93                     \\ \hline
+        57                  & 10.00               & 330.42                   \\ \hline
+        57                  & 12.00               & 20.67                    \\ \hline
+        57                  & 29.00               & 25.32                    \\ \hline
+        57                  & 30.00               & 20.74                    \\ \hline
+        67                  & 3.00                & 37.24                    \\ \hline
+        67                  & 10.00               & 327.35                   \\ \hline
+        67                  & 30.00               & 34.74                    \\ \hline
+        67                  & 31.00               & 17.10                    \\ \hline
+        68                  & 3.00                & 2.43                     \\ \hline
+        68                  & 10.00               & 189.06                   \\ \hline
+        68                  & 11.00               & 141.29                   \\ \hline
+        68                  & 13                  & 18.75                    \\ \hline
+        68                  & 31                  & 67.13                    \\ \hline
+        67                  & 31                  & 17.10                    \\ \hline
+        68                  & 3                   & 2.43                     \\ \hline
+        68                  & 6                   & 0.07                     \\ \hline
+        68                  & 10                  & 204.66                   \\ \hline
+        68                  & 11                  & 116.69                   \\ \hline
+        68                  & 12                  & 0.86                     \\ \hline
+        68                  & 13                  & 17.46                    \\ \hline
+        68                  & 30                  & 2.32                     \\ \hline
+        68                  & 31                  & 45.70                    \\ \hline
+        68                  & 35                  & 0.57                     \\ \hline
+        68                  & 36                  & 4.14                     \\ \hline
+        \end{tabular}
+        \caption{Tempo di visita delle esibizioni per ciascun visitatore, considerando tutti i punti dei cluster i cui centroidi intersecano i buffer delle esibizioni.}
+    \label{persons_time_visiting_cluster}
+    \end{table}
+
+    \begin{table}[!ht]
+        \centering
+        \begin{tabular}{|c|c|}
+        \hline
+        \textbf{Esibizione} & \textbf{Tempo di visita} \\ \hline
+        2                   & 18.75                    \\ \hline
+        3                   & 54.74                    \\ \hline
+        6                   & 0.07                     \\ \hline
+        9                   & 45.06                    \\ \hline
+        10                  & 800.19                   \\ \hline
+        11                  & 125.00                   \\ \hline
+        12                  & 16.10                    \\ \hline
+        13                  & 22.28                    \\ \hline
+        29                  & 26.92                    \\ \hline
+        30                  & 53.59                    \\ \hline
+        31                  & 62.81                    \\ \hline
+        35                  & 0.57                     \\ \hline
+        36                  & 4.14                     \\ \hline
+        \end{tabular}
+        \caption{Tempo totale di visita delle esibizioni.}
+        \label{exhibits_time_visiting}
+    \end{table}
+
+    \begin{table}[!ht]
+        \centering
+        \begin{tabular}{|c|c|}
+        \hline
+        \textbf{Esibizione} & \textbf{Tempo di visita} \\ \hline
+        2                   & 24.17                    \\ \hline
+        3                   & 47.60                    \\ \hline
+        10                  & 846.82                   \\ \hline
+        11                  & 141.29                   \\ \hline
+        12                  & 20.67                    \\ \hline
+        13                  & 18.75                    \\ \hline
+        29                  & 25.32                    \\ \hline
+        30                  & 55.49                    \\ \hline
+        31                  & 84.23                    \\ \hline
+        \end{tabular}
+        \caption{Tempo totale di visita delle esibizioni, considerando tutti i punti dei cluster i cui centroidi intersecano i buffer delle esibizioni.}
+        \label{exhibits_time_visiting_cluster}
+    \end{table}
+
+\section{Osservazione congiunta dei visitatori}
+L'analisi si conclude con il trovare, per ogni esibizione del museo, il numero di persone che la osservano congiuntamente nel tempo.
+Per rispondere a questo quesito ci siamo serviti di MobilityDB \cite{MobilityDBTODS2020}, una piattaforma per la gestione e l'analisi di traiettorie geospaziali.
+MobilityDB estende PostgreSQL e PostGIS con tipi di dato temporali (\emph{ttype}) e geometrie temporali (\emph{tgeom}) che semplificano l'analisi delle traiettorie.
+Dai punti disambiguati che intersecano i buffer delle esibizioni abbiamo creato le geometrie temporali che rappresento i punti di fermata davanti alle esibizioni di ciascun visitatore.
+Su queste geometrie abbiamo poi applicato la funzione \emph{tcount}, la quale esegue l'interpolazione \emph{stepwise} per descrivere l'evoluzione temporale dei valori.
+Nel nostro caso, viene restituito un \emph{tint} che rappresenta la variazione nel tempo del numero di visitatori che osservano l'esibizione.
+Un esempio di \emph{tint} è data dalla sequenza temporale: \\
+{[1@2021-12-13 12:08:52.424+01, 2@2021-12-13 12:08:55.537+01, 3@2021-12-13 12:09:25.787+01, 3@2021-12-13 12:14:20.27+01], (2@2021-12-13 12:14:20.2\\7+01, 2@2021-12-13 12:14:20.349+01], (1@2021-12-13 12:14:20.349+01, 1@20\\21-12-13 12:14:24.962+01]}.\\
+Il valore di una sequenza temporale è interpreatato assumendo che l'intervallo di tempo definito da ciascuna coppia di valori consecutivi è chiuso a sinistra e aperto a destra, a meno che non siano la prima o l'ultima istanza della sequenza: in quel caso si applica il tipo di intervallo dell'intera sequenza.
+Quindi la precedente sequenza viene interpretata nel seguente modo:
+\begin{itemize}
+    \item l'esibizione è osservata da 1 visitatore dall'istante 2021-12-13 12:08:52.\\424+01 all'istante precedente a 2021-12-13 12:08:55.537+01;
+    \item l'esibizione è osservata da 2 visitatori dall'istante 2021-12-13 12:08:55.\\537+01 all'istante precedente a 2021-12-13 12:09:25.787+01;
+    \item l'esibizione è osservata da 3 visitatori dall'istante 2021-12-13 12:09:25.\\787+01 all'istante 2021-12-13 12:14:20.27+01;
+    \item l'esibizione ritorna ad essere visitata da 2 visitatori dall'istante successivo a 2021-12-13 12:14:20.27+01 all'istante 2021-12-13 12:14:20.349+01;
+    \item l'esibizione ritorna ad essere visitata da 1 visitatore dall'istante successivo a 2021-12-13 12:14:20.349+01 all'istante 2021-12-13 12:14:24.962+01.
+\end{itemize}
+La Figura \ref{person_over_time} mostra una visualizzazione della variazione nel tempo del numero di persone che osservano le varie esibizioni. 
+
+
+\begin{figure}[!h]
+    \centering
+    \tikzset{every picture/.style={line width=0.75pt}} %set default line width to 0.75pt        
+
+    \begin{tikzpicture}[x=1.2pt,y=0.6pt,yscale=-1,xscale=1, scale = 0.47]
+    %uncomment if require: \path (0,1705); %set diagram left start at 0, and has height of 1705
+    
+    %Straight Lines [id:da3463451704926126] 
+    \draw    (93,1593.25) -- (93,17.5) ;
+    \draw [shift={(93,15.5)}, rotate = 90] [color={rgb, 255:red, 0; green, 0; blue, 0 }  ][line width=0.75]    (10.93,-3.29) .. controls (6.95,-1.4) and (3.31,-0.3) .. (0,0) .. controls (3.31,0.3) and (6.95,1.4) .. (10.93,3.29)   ;
+    %Straight Lines [id:da25642048142125984] 
+    \draw    (93,1593.25) -- (686.74,1593.25) ;
+    \draw [shift={(688.74,1593.25)}, rotate = 180] [color={rgb, 255:red, 0; green, 0; blue, 0 }  ][line width=0.75]    (10.93,-3.29) .. controls (6.95,-1.4) and (3.31,-0.3) .. (0,0) .. controls (3.31,0.3) and (6.95,1.4) .. (10.93,3.29)   ;
+    %Straight Lines [id:da8087797304052451] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (128,1592.99) -- (128,15.24) ;
+    %Straight Lines [id:da7463993994259177] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (173.55,1592.99) -- (173.55,15.24) ;
+    %Straight Lines [id:da6255718668626706] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (219.1,1592.99) -- (219.1,15.24) ;
+    %Straight Lines [id:da3643191700881332] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (264.65,1592.99) -- (264.65,15.24) ;
+    %Straight Lines [id:da4823678475206983] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (310.2,1592.99) -- (310.2,15.24) ;
+    %Straight Lines [id:da40416739407392455] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (355.75,1592.99) -- (355.75,15.24) ;
+    %Straight Lines [id:da7455122238483307] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (401.3,1592.99) -- (401.3,15.24) ;
+    %Straight Lines [id:da676490115335683] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (446.85,1592.99) -- (446.85,15.24) ;
+    %Straight Lines [id:da07482738310974635] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (492.4,1592.99) -- (492.4,15.24) ;
+    %Straight Lines [id:da7128613198378875] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (537.95,1592.99) -- (537.95,15.24) ;
+    %Straight Lines [id:da44073377820486415] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (583.5,1592.99) -- (583.5,15.24) ;
+    %Straight Lines [id:da35031373767240814] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (629,1592.99) -- (629,15.24) ;
+    %Straight Lines [id:da41663030626765685] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,38) -- (646.74,38) ;
+    %Straight Lines [id:da2118149357134289] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,94.54) -- (646.74,94.54) ;
+    %Straight Lines [id:da2223735376780105] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,66.27) -- (646.74,66.27) ;
+    %Straight Lines [id:da20920998105131194] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,122.81) -- (646.74,122.81) ;
+    %Straight Lines [id:da045032536168723825] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,151.08) -- (646.74,151.08) ;
+    %Straight Lines [id:da2863296403765321] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,179.35) -- (646.74,179.35) ;
+    %Straight Lines [id:da40041476835975565] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,207.62) -- (646.74,207.62) ;
+    %Straight Lines [id:da046734470122445027] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,264.16) -- (646.74,264.16) ;
+    %Straight Lines [id:da37862969078294295] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,235.89) -- (646.74,235.89) ;
+    %Straight Lines [id:da20431999831145808] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,292.43) -- (646.74,292.43) ;
+    %Straight Lines [id:da2718339046504272] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,320.7) -- (646.74,320.7) ;
+    %Straight Lines [id:da17310289923802347] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,349) -- (646.74,349) ;
+    %Straight Lines [id:da728871129606953] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,370.64) -- (646.74,370.64) ;
+    %Straight Lines [id:da2191906711727678] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,427.18) -- (646.74,427.18) ;
+    %Straight Lines [id:da16958244605153006] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,398.91) -- (646.74,398.91) ;
+    %Straight Lines [id:da292930048672811] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,455.45) -- (646.74,455.45) ;
+    %Straight Lines [id:da5301221488672563] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,483.72) -- (646.74,483.72) ;
+    %Straight Lines [id:da7776939917201979] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,511.99) -- (646.74,511.99) ;
+    %Straight Lines [id:da4834643878940865] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93,540.26) -- (646.74,540.26) ;
+    %Straight Lines [id:da24492007604917676] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.69,596.8) -- (647.44,596.8) ;
+    %Straight Lines [id:da35932971469161124] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,568.53) -- (648.08,568.53) ;
+    %Straight Lines [id:da3141849288372489] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,625.07) -- (648.08,625.07) ;
+    %Straight Lines [id:da35582164699054286] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,653.34) -- (648.08,653.34) ;
+    %Straight Lines [id:da9378466584894238] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,681.64) -- (648.08,681.64) ;
+    %Straight Lines [id:da9043861212192397] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,702.64) -- (648.08,702.64) ;
+    %Straight Lines [id:da7396188544148821] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,759.18) -- (648.08,759.18) ;
+    %Straight Lines [id:da7000635759413896] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,730.91) -- (648.08,730.91) ;
+    %Straight Lines [id:da5714069139927083] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,787.45) -- (648.08,787.45) ;
+    %Straight Lines [id:da44971589106785936] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,815.72) -- (648.08,815.72) ;
+    %Straight Lines [id:da44556290817709554] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,843.99) -- (648.08,843.99) ;
+    %Straight Lines [id:da6478064828085641] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,872.26) -- (648.08,872.26) ;
+    %Straight Lines [id:da8604043775809607] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,928.8) -- (648.08,928.8) ;
+    %Straight Lines [id:da3273525435225788] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,900.53) -- (648.08,900.53) ;
+    %Straight Lines [id:da422352300755096] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,957.07) -- (648.08,957.07) ;
+    %Straight Lines [id:da5706644867407904] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,985.34) -- (648.08,985.34) ;
+    %Straight Lines [id:da016118762156923205] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (94.33,1013.64) -- (648.08,1013.64) ;
+    %Straight Lines [id:da9646022169427568] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (92.33,1041.85) -- (646.08,1041.85) ;
+    %Straight Lines [id:da3129492051788363] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (92.33,1098.39) -- (646.08,1098.39) ;
+    %Straight Lines [id:da8049957048956058] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (92.33,1070.12) -- (646.08,1070.12) ;
+    %Straight Lines [id:da47617935013828294] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (92.33,1126.66) -- (646.08,1126.66) ;
+    %Straight Lines [id:da7780836153596489] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (92.33,1154.93) -- (646.08,1154.93) ;
+    %Straight Lines [id:da9704100222916947] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (92.33,1183.2) -- (646.08,1183.2) ;
+    %Straight Lines [id:da5570251577402885] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (92.33,1211.47) -- (646.08,1211.47) ;
+    %Straight Lines [id:da8722549275150575] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1268.01) -- (647.41,1268.01) ;
+    %Straight Lines [id:da7288586996791737] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1239.74) -- (647.41,1239.74) ;
+    %Straight Lines [id:da35697439253451235] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1296.28) -- (647.41,1296.28) ;
+    %Straight Lines [id:da9142974670899187] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1324.55) -- (647.41,1324.55) ;
+    %Straight Lines [id:da8093258730412465] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1352.85) -- (647.41,1352.85) ;
+    %Straight Lines [id:da5218024790767446] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1372.15) -- (647.41,1372.15) ;
+    %Straight Lines [id:da9613234751836826] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1428.69) -- (647.41,1428.69) ;
+    %Straight Lines [id:da7565424079683247] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1400.42) -- (647.41,1400.42) ;
+    %Straight Lines [id:da012651110316322711] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1456.96) -- (647.41,1456.96) ;
+    %Straight Lines [id:da631006883035429] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1485.23) -- (647.41,1485.23) ;
+    %Straight Lines [id:da7465472359496763] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1513.5) -- (647.41,1513.5) ;
+    %Straight Lines [id:da963299263295726] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1541.77) -- (647.41,1541.77) ;
+    %Straight Lines [id:da8264400832186607] 
+    \draw  [dash pattern={on 0.84pt off 2.51pt}]  (93.67,1570.04) -- (647.41,1570.04) ;
+    %Shape: Ellipse [id:dp003254073135735558] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (107.54,742.27) .. controls (107.54,741.75) and (107.97,741.33) .. (108.5,741.33) .. controls (109.04,741.33) and (109.47,741.75) .. (109.47,742.27) .. controls (109.47,742.79) and (109.04,743.2) .. (108.5,743.2) .. controls (107.97,743.2) and (107.54,742.79) .. (107.54,742.27) -- cycle ;
+    %Straight Lines [id:da3820293934103769] 
+    \draw    (108.5,743.2) -- (108.5,745.64) ;
+    \draw   (107,748.36) -- (108.43,745.5) -- (109.87,748.36) ;
+    %Straight Lines [id:da3912803495675188] 
+    \draw    (108.5,743.2) -- (110.43,744.85) ;
+    %Straight Lines [id:da8884433396838356] 
+    \draw    (108.5,743.2) -- (106.12,744.97) ;
+    
+    %Shape: Ellipse [id:dp30937072156413237] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (107.54,635.27) .. controls (107.54,634.75) and (107.97,634.33) .. (108.5,634.33) .. controls (109.04,634.33) and (109.47,634.75) .. (109.47,635.27) .. controls (109.47,635.79) and (109.04,636.2) .. (108.5,636.2) .. controls (107.97,636.2) and (107.54,635.79) .. (107.54,635.27) -- cycle ;
+    %Straight Lines [id:da581338612063423] 
+    \draw    (108.5,636.2) -- (108.5,638.64) ;
+    \draw   (107,641.36) -- (108.43,638.5) -- (109.87,641.36) ;
+    %Straight Lines [id:da13532574737240677] 
+    \draw    (108.5,636.2) -- (110.43,637.85) ;
+    %Straight Lines [id:da11857631018844605] 
+    \draw    (108.5,636.2) -- (106.12,637.97) ;
+    
+    %Shape: Ellipse [id:dp29764005347896183] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (149.54,770.27) .. controls (149.54,769.75) and (149.97,769.33) .. (150.5,769.33) .. controls (151.04,769.33) and (151.47,769.75) .. (151.47,770.27) .. controls (151.47,770.79) and (151.04,771.2) .. (150.5,771.2) .. controls (149.97,771.2) and (149.54,770.79) .. (149.54,770.27) -- cycle ;
+    %Straight Lines [id:da88209287739291] 
+    \draw    (150.5,771.2) -- (150.5,773.64) ;
+    \draw   (149,776.36) -- (150.43,773.5) -- (151.87,776.36) ;
+    %Straight Lines [id:da3896756085080406] 
+    \draw    (150.5,771.2) -- (152.43,772.85) ;
+    %Straight Lines [id:da7215840463223868] 
+    \draw    (150.5,771.2) -- (148.12,772.97) ;
+    
+    %Shape: Ellipse [id:dp32422015500110946] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (149.54,712.27) .. controls (149.54,711.75) and (149.97,711.33) .. (150.5,711.33) .. controls (151.04,711.33) and (151.47,711.75) .. (151.47,712.27) .. controls (151.47,712.79) and (151.04,713.2) .. (150.5,713.2) .. controls (149.97,713.2) and (149.54,712.79) .. (149.54,712.27) -- cycle ;
+    %Straight Lines [id:da20744198119400448] 
+    \draw    (150.5,713.2) -- (150.5,715.64) ;
+    \draw   (149,718.36) -- (150.43,715.5) -- (151.87,718.36) ;
+    %Straight Lines [id:da3671946987326349] 
+    \draw    (150.5,713.2) -- (152.43,714.85) ;
+    %Straight Lines [id:da7390943667970244] 
+    \draw    (150.5,713.2) -- (148.12,714.97) ;
+    
+    %Shape: Ellipse [id:dp5906516319880617] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (141.87,688.27) .. controls (141.87,687.75) and (142.3,687.33) .. (142.84,687.33) .. controls (143.37,687.33) and (143.81,687.75) .. (143.81,688.27) .. controls (143.81,688.79) and (143.37,689.2) .. (142.84,689.2) .. controls (142.3,689.2) and (141.87,688.79) .. (141.87,688.27) -- cycle ;
+    %Straight Lines [id:da7009194019860105] 
+    \draw    (142.84,689.2) -- (142.84,691.64) ;
+    \draw   (141.33,694.36) -- (142.77,691.5) -- (144.2,694.36) ;
+    %Straight Lines [id:da1468751953382217] 
+    \draw    (142.84,689.2) -- (144.76,690.85) ;
+    %Straight Lines [id:da5557095172786886] 
+    \draw    (142.84,689.2) -- (140.46,690.97) ;
+    
+    %Shape: Ellipse [id:dp8648160939084371] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (157.2,688.27) .. controls (157.2,687.75) and (157.64,687.33) .. (158.17,687.33) .. controls (158.71,687.33) and (159.14,687.75) .. (159.14,688.27) .. controls (159.14,688.79) and (158.71,689.2) .. (158.17,689.2) .. controls (157.64,689.2) and (157.2,688.79) .. (157.2,688.27) -- cycle ;
+    %Straight Lines [id:da3313341119663753] 
+    \draw    (158.17,689.2) -- (158.17,691.64) ;
+    \draw   (156.67,694.36) -- (158.1,691.5) -- (159.53,694.36) ;
+    %Straight Lines [id:da4175457749122993] 
+    \draw    (158.17,689.2) -- (160.1,690.85) ;
+    %Straight Lines [id:da39008735348212387] 
+    \draw    (158.17,689.2) -- (155.79,690.97) ;
+    
+    
+    %Shape: Ellipse [id:dp7618556483796508] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (138.04,663.77) .. controls (138.04,663.25) and (138.47,662.83) .. (139,662.83) .. controls (139.54,662.83) and (139.97,663.25) .. (139.97,663.77) .. controls (139.97,664.29) and (139.54,664.7) .. (139,664.7) .. controls (138.47,664.7) and (138.04,664.29) .. (138.04,663.77) -- cycle ;
+    %Straight Lines [id:da6066117088462077] 
+    \draw    (139,664.7) -- (139,667.14) ;
+    \draw   (137.5,669.86) -- (138.93,667) -- (140.37,669.86) ;
+    %Straight Lines [id:da4148314729721927] 
+    \draw    (139,664.7) -- (140.93,666.35) ;
+    %Straight Lines [id:da7964220998308136] 
+    \draw    (139,664.7) -- (136.62,666.47) ;
+    
+    %Shape: Ellipse [id:dp7821347005411312] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (149.53,663.77) .. controls (149.53,663.25) and (149.97,662.83) .. (150.5,662.83) .. controls (151.04,662.83) and (151.47,663.25) .. (151.47,663.77) .. controls (151.47,664.29) and (151.04,664.7) .. (150.5,664.7) .. controls (149.97,664.7) and (149.53,664.29) .. (149.53,663.77) -- cycle ;
+    %Straight Lines [id:da05282204774929267] 
+    \draw    (150.5,664.7) -- (150.5,667.14) ;
+    \draw   (149,669.86) -- (150.43,667) -- (151.87,669.86) ;
+    %Straight Lines [id:da252209350015123] 
+    \draw    (150.5,664.7) -- (152.43,666.35) ;
+    %Straight Lines [id:da39244022544304014] 
+    \draw    (150.5,664.7) -- (148.12,666.47) ;
+    
+    %Shape: Ellipse [id:dp7216705629486302] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (161.04,663.77) .. controls (161.04,663.25) and (161.47,662.83) .. (162,662.83) .. controls (162.54,662.83) and (162.97,663.25) .. (162.97,663.77) .. controls (162.97,664.29) and (162.54,664.7) .. (162,664.7) .. controls (161.47,664.7) and (161.04,664.29) .. (161.04,663.77) -- cycle ;
+    %Straight Lines [id:da7346115080240261] 
+    \draw    (162,664.7) -- (162,667.14) ;
+    \draw   (160.5,669.86) -- (161.93,667) -- (163.37,669.86) ;
+    %Straight Lines [id:da2729336163941962] 
+    \draw    (162,664.7) -- (163.93,666.35) ;
+    %Straight Lines [id:da4079397666856819] 
+    \draw    (162,664.7) -- (159.62,666.47) ;
+    
+    
+    %Shape: Ellipse [id:dp5843774296392907] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (141.87,606.6) .. controls (141.87,606.09) and (142.3,605.67) .. (142.84,605.67) .. controls (143.37,605.67) and (143.81,606.09) .. (143.81,606.6) .. controls (143.81,607.12) and (143.37,607.54) .. (142.84,607.54) .. controls (142.3,607.54) and (141.87,607.12) .. (141.87,606.6) -- cycle ;
+    %Straight Lines [id:da5438807514591963] 
+    \draw    (142.84,607.54) -- (142.84,609.98) ;
+    \draw   (141.33,612.7) -- (142.77,609.83) -- (144.2,612.7) ;
+    %Straight Lines [id:da821189268607529] 
+    \draw    (142.84,607.54) -- (144.76,609.18) ;
+    %Straight Lines [id:da4821907498196536] 
+    \draw    (142.84,607.54) -- (140.46,609.3) ;
+    
+    %Shape: Ellipse [id:dp0367906752271796] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (157.2,606.6) .. controls (157.2,606.09) and (157.64,605.67) .. (158.17,605.67) .. controls (158.71,605.67) and (159.14,606.09) .. (159.14,606.6) .. controls (159.14,607.12) and (158.71,607.54) .. (158.17,607.54) .. controls (157.64,607.54) and (157.2,607.12) .. (157.2,606.6) -- cycle ;
+    %Straight Lines [id:da7946864652684609] 
+    \draw    (158.17,607.54) -- (158.17,609.98) ;
+    \draw   (156.67,612.7) -- (158.1,609.83) -- (159.53,612.7) ;
+    %Straight Lines [id:da8304336944173825] 
+    \draw    (158.17,607.54) -- (160.1,609.18) ;
+    %Straight Lines [id:da8191641128038518] 
+    \draw    (158.17,607.54) -- (155.79,609.3) ;
+    
+    
+    %Shape: Ellipse [id:dp7886064270939961] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (141.87,634.6) .. controls (141.87,634.09) and (142.3,633.67) .. (142.84,633.67) .. controls (143.37,633.67) and (143.81,634.09) .. (143.81,634.6) .. controls (143.81,635.12) and (143.37,635.54) .. (142.84,635.54) .. controls (142.3,635.54) and (141.87,635.12) .. (141.87,634.6) -- cycle ;
+    %Straight Lines [id:da7582130554017621] 
+    \draw    (142.84,635.54) -- (142.84,637.98) ;
+    \draw   (141.33,640.7) -- (142.77,637.83) -- (144.2,640.7) ;
+    %Straight Lines [id:da16183269621260665] 
+    \draw    (142.84,635.54) -- (144.76,637.18) ;
+    %Straight Lines [id:da2677686858265085] 
+    \draw    (142.84,635.54) -- (140.46,637.3) ;
+    
+    %Shape: Ellipse [id:dp29175359387165134] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (157.2,634.6) .. controls (157.2,634.09) and (157.64,633.67) .. (158.17,633.67) .. controls (158.71,633.67) and (159.14,634.09) .. (159.14,634.6) .. controls (159.14,635.12) and (158.71,635.54) .. (158.17,635.54) .. controls (157.64,635.54) and (157.2,635.12) .. (157.2,634.6) -- cycle ;
+    %Straight Lines [id:da1375644131016518] 
+    \draw    (158.17,635.54) -- (158.17,637.98) ;
+    \draw   (156.67,640.7) -- (158.1,637.83) -- (159.53,640.7) ;
+    %Straight Lines [id:da4159771106436454] 
+    \draw    (158.17,635.54) -- (160.1,637.18) ;
+    %Straight Lines [id:da8993079876580488] 
+    \draw    (158.17,635.54) -- (155.79,637.3) ;
+    
+    
+    %Shape: Ellipse [id:dp42791809355756083] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (148.54,582.27) .. controls (148.54,581.75) and (148.97,581.33) .. (149.5,581.33) .. controls (150.04,581.33) and (150.47,581.75) .. (150.47,582.27) .. controls (150.47,582.79) and (150.04,583.2) .. (149.5,583.2) .. controls (148.97,583.2) and (148.54,582.79) .. (148.54,582.27) -- cycle ;
+    %Straight Lines [id:da7008939447397131] 
+    \draw    (149.5,583.2) -- (149.5,585.64) ;
+    \draw   (148,588.36) -- (149.43,585.5) -- (150.87,588.36) ;
+    %Straight Lines [id:da8746893138643295] 
+    \draw    (149.5,583.2) -- (151.43,584.85) ;
+    %Straight Lines [id:da5502046314892677] 
+    \draw    (149.5,583.2) -- (147.12,584.97) ;
+    
+    %Shape: Ellipse [id:dp7920987500865353] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (195.2,1281.94) .. controls (195.2,1281.42) and (195.64,1281) .. (196.17,1281) .. controls (196.71,1281) and (197.14,1281.42) .. (197.14,1281.94) .. controls (197.14,1282.45) and (196.71,1282.87) .. (196.17,1282.87) .. controls (195.64,1282.87) and (195.2,1282.45) .. (195.2,1281.94) -- cycle ;
+    %Straight Lines [id:da4585580425586815] 
+    \draw    (196.17,1282.87) -- (196.17,1285.31) ;
+    \draw   (194.67,1288.03) -- (196.1,1285.16) -- (197.53,1288.03) ;
+    %Straight Lines [id:da9495752872539802] 
+    \draw    (196.17,1282.87) -- (198.1,1284.51) ;
+    %Straight Lines [id:da47783229819337425] 
+    \draw    (196.17,1282.87) -- (193.79,1284.64) ;
+    
+    %Shape: Ellipse [id:dp966206816645274] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (239.2,1336.94) .. controls (239.2,1336.42) and (239.64,1336) .. (240.17,1336) .. controls (240.71,1336) and (241.14,1336.42) .. (241.14,1336.94) .. controls (241.14,1337.45) and (240.71,1337.87) .. (240.17,1337.87) .. controls (239.64,1337.87) and (239.2,1337.45) .. (239.2,1336.94) -- cycle ;
+    %Straight Lines [id:da9567974380772379] 
+    \draw    (240.17,1337.87) -- (240.17,1340.31) ;
+    \draw   (238.67,1343.03) -- (240.1,1340.16) -- (241.53,1343.03) ;
+    %Straight Lines [id:da677166488799412] 
+    \draw    (240.17,1337.87) -- (242.1,1339.51) ;
+    %Straight Lines [id:da8082786815653136] 
+    \draw    (240.17,1337.87) -- (237.79,1339.64) ;
+    
+    %Shape: Ellipse [id:dp58875855842066] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (231.54,1305.27) .. controls (231.54,1304.75) and (231.97,1304.33) .. (232.5,1304.33) .. controls (233.04,1304.33) and (233.47,1304.75) .. (233.47,1305.27) .. controls (233.47,1305.79) and (233.04,1306.2) .. (232.5,1306.2) .. controls (231.97,1306.2) and (231.54,1305.79) .. (231.54,1305.27) -- cycle ;
+    %Straight Lines [id:da4351576374102901] 
+    \draw    (232.5,1306.2) -- (232.5,1308.64) ;
+    \draw   (231,1311.36) -- (232.43,1308.5) -- (233.87,1311.36) ;
+    %Straight Lines [id:da7124119183385342] 
+    \draw    (232.5,1306.2) -- (234.43,1307.85) ;
+    %Straight Lines [id:da023916389903696933] 
+    \draw    (232.5,1306.2) -- (230.12,1307.97) ;
+    
+    %Shape: Ellipse [id:dp6585779713248037] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (246.87,1305.27) .. controls (246.87,1304.75) and (247.3,1304.33) .. (247.84,1304.33) .. controls (248.37,1304.33) and (248.81,1304.75) .. (248.81,1305.27) .. controls (248.81,1305.79) and (248.37,1306.2) .. (247.84,1306.2) .. controls (247.3,1306.2) and (246.87,1305.79) .. (246.87,1305.27) -- cycle ;
+    %Straight Lines [id:da34465875406541646] 
+    \draw    (247.84,1306.2) -- (247.84,1308.64) ;
+    \draw   (246.33,1311.36) -- (247.77,1308.5) -- (249.2,1311.36) ;
+    %Straight Lines [id:da8228618083320864] 
+    \draw    (247.84,1306.2) -- (249.76,1307.85) ;
+    %Straight Lines [id:da08025102748873492] 
+    \draw    (247.84,1306.2) -- (245.46,1307.97) ;
+    
+    
+    %Shape: Ellipse [id:dp1176033856258123] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (239.2,1278.94) .. controls (239.2,1278.42) and (239.64,1278) .. (240.17,1278) .. controls (240.71,1278) and (241.14,1278.42) .. (241.14,1278.94) .. controls (241.14,1279.45) and (240.71,1279.87) .. (240.17,1279.87) .. controls (239.64,1279.87) and (239.2,1279.45) .. (239.2,1278.94) -- cycle ;
+    %Straight Lines [id:da6762969508073919] 
+    \draw    (240.17,1279.87) -- (240.17,1282.31) ;
+    \draw   (238.67,1285.03) -- (240.1,1282.16) -- (241.53,1285.03) ;
+    %Straight Lines [id:da3511138468142154] 
+    \draw    (240.17,1279.87) -- (242.1,1281.51) ;
+    %Straight Lines [id:da8985002225874157] 
+    \draw    (240.17,1279.87) -- (237.79,1281.64) ;
+    
+    %Shape: Ellipse [id:dp2202443428616272] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (239.2,1137.94) .. controls (239.2,1137.42) and (239.64,1137) .. (240.17,1137) .. controls (240.71,1137) and (241.14,1137.42) .. (241.14,1137.94) .. controls (241.14,1138.45) and (240.71,1138.87) .. (240.17,1138.87) .. controls (239.64,1138.87) and (239.2,1138.45) .. (239.2,1137.94) -- cycle ;
+    %Straight Lines [id:da8815403404650637] 
+    \draw    (240.17,1138.87) -- (240.17,1141.31) ;
+    \draw   (238.67,1144.03) -- (240.1,1141.16) -- (241.53,1144.03) ;
+    %Straight Lines [id:da09195988909560526] 
+    \draw    (240.17,1138.87) -- (242.1,1140.51) ;
+    %Straight Lines [id:da5293653086744827] 
+    \draw    (240.17,1138.87) -- (237.79,1140.64) ;
+    
+    %Shape: Ellipse [id:dp028177985831894015] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (286.2,1524.94) .. controls (286.2,1524.42) and (286.64,1524) .. (287.17,1524) .. controls (287.71,1524) and (288.14,1524.42) .. (288.14,1524.94) .. controls (288.14,1525.45) and (287.71,1525.87) .. (287.17,1525.87) .. controls (286.64,1525.87) and (286.2,1525.45) .. (286.2,1524.94) -- cycle ;
+    %Straight Lines [id:da6866030101871774] 
+    \draw    (287.17,1525.87) -- (287.17,1528.31) ;
+    \draw   (285.67,1531.03) -- (287.1,1528.16) -- (288.53,1531.03) ;
+    %Straight Lines [id:da4495727631606652] 
+    \draw    (287.17,1525.87) -- (289.1,1527.51) ;
+    %Straight Lines [id:da6925233248424034] 
+    \draw    (287.17,1525.87) -- (284.79,1527.64) ;
+    
+    %Shape: Ellipse [id:dp810388705718933] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (286.2,1440.94) .. controls (286.2,1440.42) and (286.64,1440) .. (287.17,1440) .. controls (287.71,1440) and (288.14,1440.42) .. (288.14,1440.94) .. controls (288.14,1441.45) and (287.71,1441.87) .. (287.17,1441.87) .. controls (286.64,1441.87) and (286.2,1441.45) .. (286.2,1440.94) -- cycle ;
+    %Straight Lines [id:da7373093401220228] 
+    \draw    (287.17,1441.87) -- (287.17,1444.31) ;
+    \draw   (285.67,1447.03) -- (287.1,1444.16) -- (288.53,1447.03) ;
+    %Straight Lines [id:da9941360751563182] 
+    \draw    (287.17,1441.87) -- (289.1,1443.51) ;
+    %Straight Lines [id:da9745708186927524] 
+    \draw    (287.17,1441.87) -- (284.79,1443.64) ;
+    
+    %Shape: Ellipse [id:dp9799393621321499] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (276.54,1413.27) .. controls (276.54,1412.75) and (276.97,1412.33) .. (277.5,1412.33) .. controls (278.04,1412.33) and (278.47,1412.75) .. (278.47,1413.27) .. controls (278.47,1413.79) and (278.04,1414.2) .. (277.5,1414.2) .. controls (276.97,1414.2) and (276.54,1413.79) .. (276.54,1413.27) -- cycle ;
+    %Straight Lines [id:da7481028279817421] 
+    \draw    (277.5,1414.2) -- (277.5,1416.64) ;
+    \draw   (276,1419.36) -- (277.43,1416.5) -- (278.87,1419.36) ;
+    %Straight Lines [id:da6010553346300929] 
+    \draw    (277.5,1414.2) -- (279.43,1415.85) ;
+    %Straight Lines [id:da18506276900499974] 
+    \draw    (277.5,1414.2) -- (275.12,1415.97) ;
+    
+    %Shape: Ellipse [id:dp042854270609259615] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (291.87,1413.27) .. controls (291.87,1412.75) and (292.3,1412.33) .. (292.84,1412.33) .. controls (293.37,1412.33) and (293.81,1412.75) .. (293.81,1413.27) .. controls (293.81,1413.79) and (293.37,1414.2) .. (292.84,1414.2) .. controls (292.3,1414.2) and (291.87,1413.79) .. (291.87,1413.27) -- cycle ;
+    %Straight Lines [id:da5531992985041982] 
+    \draw    (292.84,1414.2) -- (292.84,1416.64) ;
+    \draw   (291.33,1419.36) -- (292.77,1416.5) -- (294.2,1419.36) ;
+    %Straight Lines [id:da7668812187328986] 
+    \draw    (292.84,1414.2) -- (294.76,1415.85) ;
+    %Straight Lines [id:da9680898894531313] 
+    \draw    (292.84,1414.2) -- (290.46,1415.97) ;
+    
+    
+    %Shape: Ellipse [id:dp19518387210272548] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (275.54,1382.27) .. controls (275.54,1381.75) and (275.97,1381.33) .. (276.5,1381.33) .. controls (277.04,1381.33) and (277.47,1381.75) .. (277.47,1382.27) .. controls (277.47,1382.79) and (277.04,1383.2) .. (276.5,1383.2) .. controls (275.97,1383.2) and (275.54,1382.79) .. (275.54,1382.27) -- cycle ;
+    %Straight Lines [id:da6944205705416149] 
+    \draw    (276.5,1383.2) -- (276.5,1385.64) ;
+    \draw   (275,1388.36) -- (276.43,1385.5) -- (277.87,1388.36) ;
+    %Straight Lines [id:da12612492223170957] 
+    \draw    (276.5,1383.2) -- (278.43,1384.85) ;
+    %Straight Lines [id:da07588126263040751] 
+    \draw    (276.5,1383.2) -- (274.12,1384.97) ;
+    
+    %Shape: Ellipse [id:dp0008678223644769112] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (290.87,1382.27) .. controls (290.87,1381.75) and (291.3,1381.33) .. (291.84,1381.33) .. controls (292.37,1381.33) and (292.81,1381.75) .. (292.81,1382.27) .. controls (292.81,1382.79) and (292.37,1383.2) .. (291.84,1383.2) .. controls (291.3,1383.2) and (290.87,1382.79) .. (290.87,1382.27) -- cycle ;
+    %Straight Lines [id:da944210790355063] 
+    \draw    (291.84,1383.2) -- (291.84,1385.64) ;
+    \draw   (290.33,1388.36) -- (291.77,1385.5) -- (293.2,1388.36) ;
+    %Straight Lines [id:da02601066483091774] 
+    \draw    (291.84,1383.2) -- (293.76,1384.85) ;
+    %Straight Lines [id:da08356078048820681] 
+    \draw    (291.84,1383.2) -- (289.46,1384.97) ;
+    
+    
+    %Shape: Ellipse [id:dp9873798339134212] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (274.04,1196.77) .. controls (274.04,1196.25) and (274.47,1195.83) .. (275,1195.83) .. controls (275.54,1195.83) and (275.97,1196.25) .. (275.97,1196.77) .. controls (275.97,1197.29) and (275.54,1197.7) .. (275,1197.7) .. controls (274.47,1197.7) and (274.04,1197.29) .. (274.04,1196.77) -- cycle ;
+    %Straight Lines [id:da7216638677213716] 
+    \draw    (275,1197.7) -- (275,1200.14) ;
+    \draw   (273.5,1202.86) -- (274.93,1200) -- (276.37,1202.86) ;
+    %Straight Lines [id:da7137037878232748] 
+    \draw    (275,1197.7) -- (276.93,1199.35) ;
+    %Straight Lines [id:da5485053626063274] 
+    \draw    (275,1197.7) -- (272.62,1199.47) ;
+    
+    %Shape: Ellipse [id:dp5855864577079577] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (285.53,1196.77) .. controls (285.53,1196.25) and (285.97,1195.83) .. (286.5,1195.83) .. controls (287.04,1195.83) and (287.47,1196.25) .. (287.47,1196.77) .. controls (287.47,1197.29) and (287.04,1197.7) .. (286.5,1197.7) .. controls (285.97,1197.7) and (285.53,1197.29) .. (285.53,1196.77) -- cycle ;
+    %Straight Lines [id:da6896538746313707] 
+    \draw    (286.5,1197.7) -- (286.5,1200.14) ;
+    \draw   (285,1202.86) -- (286.43,1200) -- (287.87,1202.86) ;
+    %Straight Lines [id:da6121190889286885] 
+    \draw    (286.5,1197.7) -- (288.43,1199.35) ;
+    %Straight Lines [id:da4536282805340395] 
+    \draw    (286.5,1197.7) -- (284.12,1199.47) ;
+    
+    %Shape: Ellipse [id:dp31366883820516267] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (297.04,1196.77) .. controls (297.04,1196.25) and (297.47,1195.83) .. (298,1195.83) .. controls (298.54,1195.83) and (298.97,1196.25) .. (298.97,1196.77) .. controls (298.97,1197.29) and (298.54,1197.7) .. (298,1197.7) .. controls (297.47,1197.7) and (297.04,1197.29) .. (297.04,1196.77) -- cycle ;
+    %Straight Lines [id:da30732236354842435] 
+    \draw    (298,1197.7) -- (298,1200.14) ;
+    \draw   (296.5,1202.86) -- (297.93,1200) -- (299.37,1202.86) ;
+    %Straight Lines [id:da35621053164314254] 
+    \draw    (298,1197.7) -- (299.93,1199.35) ;
+    %Straight Lines [id:da33559484440752096] 
+    \draw    (298,1197.7) -- (295.62,1199.47) ;
+    
+    
+    %Shape: Ellipse [id:dp9624082026048448] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (273.04,1358.77) .. controls (273.04,1358.25) and (273.47,1357.83) .. (274,1357.83) .. controls (274.54,1357.83) and (274.97,1358.25) .. (274.97,1358.77) .. controls (274.97,1359.29) and (274.54,1359.7) .. (274,1359.7) .. controls (273.47,1359.7) and (273.04,1359.29) .. (273.04,1358.77) -- cycle ;
+    %Straight Lines [id:da7742450319966188] 
+    \draw    (274,1359.7) -- (274,1362.14) ;
+    \draw   (272.5,1364.86) -- (273.93,1362) -- (275.37,1364.86) ;
+    %Straight Lines [id:da07091581669337654] 
+    \draw    (274,1359.7) -- (275.93,1361.35) ;
+    %Straight Lines [id:da8834703977415133] 
+    \draw    (274,1359.7) -- (271.62,1361.47) ;
+    
+    %Shape: Ellipse [id:dp2870488956758479] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (284.53,1358.77) .. controls (284.53,1358.25) and (284.97,1357.83) .. (285.5,1357.83) .. controls (286.04,1357.83) and (286.47,1358.25) .. (286.47,1358.77) .. controls (286.47,1359.29) and (286.04,1359.7) .. (285.5,1359.7) .. controls (284.97,1359.7) and (284.53,1359.29) .. (284.53,1358.77) -- cycle ;
+    %Straight Lines [id:da017398156219442518] 
+    \draw    (285.5,1359.7) -- (285.5,1362.14) ;
+    \draw   (284,1364.86) -- (285.43,1362) -- (286.87,1364.86) ;
+    %Straight Lines [id:da7550445921623388] 
+    \draw    (285.5,1359.7) -- (287.43,1361.35) ;
+    %Straight Lines [id:da08542716993389798] 
+    \draw    (285.5,1359.7) -- (283.12,1361.47) ;
+    
+    %Shape: Ellipse [id:dp6942330809155137] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (296.04,1358.77) .. controls (296.04,1358.25) and (296.47,1357.83) .. (297,1357.83) .. controls (297.54,1357.83) and (297.97,1358.25) .. (297.97,1358.77) .. controls (297.97,1359.29) and (297.54,1359.7) .. (297,1359.7) .. controls (296.47,1359.7) and (296.04,1359.29) .. (296.04,1358.77) -- cycle ;
+    %Straight Lines [id:da5816428270536129] 
+    \draw    (297,1359.7) -- (297,1362.14) ;
+    \draw   (295.5,1364.86) -- (296.93,1362) -- (298.37,1364.86) ;
+    %Straight Lines [id:da4634168270258572] 
+    \draw    (297,1359.7) -- (298.93,1361.35) ;
+    %Straight Lines [id:da5453289771733902] 
+    \draw    (297,1359.7) -- (294.62,1361.47) ;
+    
+    
+    %Shape: Ellipse [id:dp3780052199227866] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (277.54,1166.27) .. controls (277.54,1165.75) and (277.97,1165.33) .. (278.5,1165.33) .. controls (279.04,1165.33) and (279.47,1165.75) .. (279.47,1166.27) .. controls (279.47,1166.79) and (279.04,1167.2) .. (278.5,1167.2) .. controls (277.97,1167.2) and (277.54,1166.79) .. (277.54,1166.27) -- cycle ;
+    %Straight Lines [id:da6708583979943634] 
+    \draw    (278.5,1167.2) -- (278.5,1169.64) ;
+    \draw   (277,1172.36) -- (278.43,1169.5) -- (279.87,1172.36) ;
+    %Straight Lines [id:da17072022042439983] 
+    \draw    (278.5,1167.2) -- (280.43,1168.85) ;
+    %Straight Lines [id:da5746865538476866] 
+    \draw    (278.5,1167.2) -- (276.12,1168.97) ;
+    
+    %Shape: Ellipse [id:dp7187230813550292] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (292.87,1166.27) .. controls (292.87,1165.75) and (293.3,1165.33) .. (293.84,1165.33) .. controls (294.37,1165.33) and (294.81,1165.75) .. (294.81,1166.27) .. controls (294.81,1166.79) and (294.37,1167.2) .. (293.84,1167.2) .. controls (293.3,1167.2) and (292.87,1166.79) .. (292.87,1166.27) -- cycle ;
+    %Straight Lines [id:da9858905523351811] 
+    \draw    (293.84,1167.2) -- (293.84,1169.64) ;
+    \draw   (292.33,1172.36) -- (293.77,1169.5) -- (295.2,1172.36) ;
+    %Straight Lines [id:da5887594518079886] 
+    \draw    (293.84,1167.2) -- (295.76,1168.85) ;
+    %Straight Lines [id:da6304291944768268] 
+    \draw    (293.84,1167.2) -- (291.46,1168.97) ;
+    
+    
+    %Shape: Ellipse [id:dp9033040327645299] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (285.2,1135.94) .. controls (285.2,1135.42) and (285.64,1135) .. (286.17,1135) .. controls (286.71,1135) and (287.14,1135.42) .. (287.14,1135.94) .. controls (287.14,1136.45) and (286.71,1136.87) .. (286.17,1136.87) .. controls (285.64,1136.87) and (285.2,1136.45) .. (285.2,1135.94) -- cycle ;
+    %Straight Lines [id:da8180669936546059] 
+    \draw    (286.17,1136.87) -- (286.17,1139.31) ;
+    \draw   (284.67,1142.03) -- (286.1,1139.16) -- (287.53,1142.03) ;
+    %Straight Lines [id:da8897162284080942] 
+    \draw    (286.17,1136.87) -- (288.1,1138.51) ;
+    %Straight Lines [id:da7085705771277513] 
+    \draw    (286.17,1136.87) -- (283.79,1138.64) ;
+    
+    %Shape: Ellipse [id:dp05340139307686331] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (285.2,1107.94) .. controls (285.2,1107.42) and (285.64,1107) .. (286.17,1107) .. controls (286.71,1107) and (287.14,1107.42) .. (287.14,1107.94) .. controls (287.14,1108.45) and (286.71,1108.87) .. (286.17,1108.87) .. controls (285.64,1108.87) and (285.2,1108.45) .. (285.2,1107.94) -- cycle ;
+    %Straight Lines [id:da8035496745019168] 
+    \draw    (286.17,1108.87) -- (286.17,1111.31) ;
+    \draw   (284.67,1114.03) -- (286.1,1111.16) -- (287.53,1114.03) ;
+    %Straight Lines [id:da3207407525064905] 
+    \draw    (286.17,1108.87) -- (288.1,1110.51) ;
+    %Straight Lines [id:da11940391473241307] 
+    \draw    (286.17,1108.87) -- (283.79,1110.64) ;
+    
+    %Shape: Ellipse [id:dp6643812621282505] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (330.2,1579.94) .. controls (330.2,1579.42) and (330.64,1579) .. (331.17,1579) .. controls (331.71,1579) and (332.14,1579.42) .. (332.14,1579.94) .. controls (332.14,1580.45) and (331.71,1580.87) .. (331.17,1580.87) .. controls (330.64,1580.87) and (330.2,1580.45) .. (330.2,1579.94) -- cycle ;
+    %Straight Lines [id:da5969364220128781] 
+    \draw    (331.17,1580.87) -- (331.17,1583.31) ;
+    \draw   (329.67,1586.03) -- (331.1,1583.16) -- (332.53,1586.03) ;
+    %Straight Lines [id:da8884927603481108] 
+    \draw    (331.17,1580.87) -- (333.1,1582.51) ;
+    %Straight Lines [id:da4405308450232821] 
+    \draw    (331.17,1580.87) -- (328.79,1582.64) ;
+    
+    %Shape: Ellipse [id:dp6297241674201466] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (330.2,1552.94) .. controls (330.2,1552.42) and (330.64,1552) .. (331.17,1552) .. controls (331.71,1552) and (332.14,1552.42) .. (332.14,1552.94) .. controls (332.14,1553.45) and (331.71,1553.87) .. (331.17,1553.87) .. controls (330.64,1553.87) and (330.2,1553.45) .. (330.2,1552.94) -- cycle ;
+    %Straight Lines [id:da4638940338722364] 
+    \draw    (331.17,1553.87) -- (331.17,1556.31) ;
+    \draw   (329.67,1559.03) -- (331.1,1556.16) -- (332.53,1559.03) ;
+    %Straight Lines [id:da4449941138678233] 
+    \draw    (331.17,1553.87) -- (333.1,1555.51) ;
+    %Straight Lines [id:da9120821586169594] 
+    \draw    (331.17,1553.87) -- (328.79,1555.64) ;
+    
+    %Shape: Ellipse [id:dp05634361777507624] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (331.2,1496.94) .. controls (331.2,1496.42) and (331.64,1496) .. (332.17,1496) .. controls (332.71,1496) and (333.14,1496.42) .. (333.14,1496.94) .. controls (333.14,1497.45) and (332.71,1497.87) .. (332.17,1497.87) .. controls (331.64,1497.87) and (331.2,1497.45) .. (331.2,1496.94) -- cycle ;
+    %Straight Lines [id:da6969295284167945] 
+    \draw    (332.17,1497.87) -- (332.17,1500.31) ;
+    \draw   (330.67,1503.03) -- (332.1,1500.16) -- (333.53,1503.03) ;
+    %Straight Lines [id:da9503068120911751] 
+    \draw    (332.17,1497.87) -- (334.1,1499.51) ;
+    %Straight Lines [id:da916996603434975] 
+    \draw    (332.17,1497.87) -- (329.79,1499.64) ;
+    
+    %Shape: Ellipse [id:dp23193209991662078] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (324.54,1467.27) .. controls (324.54,1466.75) and (324.97,1466.33) .. (325.5,1466.33) .. controls (326.04,1466.33) and (326.47,1466.75) .. (326.47,1467.27) .. controls (326.47,1467.79) and (326.04,1468.2) .. (325.5,1468.2) .. controls (324.97,1468.2) and (324.54,1467.79) .. (324.54,1467.27) -- cycle ;
+    %Straight Lines [id:da4479609854770512] 
+    \draw    (325.5,1468.2) -- (325.5,1470.64) ;
+    \draw   (324,1473.36) -- (325.43,1470.5) -- (326.87,1473.36) ;
+    %Straight Lines [id:da7600879620837631] 
+    \draw    (325.5,1468.2) -- (327.43,1469.85) ;
+    %Straight Lines [id:da8819810371027663] 
+    \draw    (325.5,1468.2) -- (323.12,1469.97) ;
+    
+    %Shape: Ellipse [id:dp2075028068865341] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (339.87,1467.27) .. controls (339.87,1466.75) and (340.3,1466.33) .. (340.84,1466.33) .. controls (341.37,1466.33) and (341.81,1466.75) .. (341.81,1467.27) .. controls (341.81,1467.79) and (341.37,1468.2) .. (340.84,1468.2) .. controls (340.3,1468.2) and (339.87,1467.79) .. (339.87,1467.27) -- cycle ;
+    %Straight Lines [id:da5413814633755214] 
+    \draw    (340.84,1468.2) -- (340.84,1470.64) ;
+    \draw   (339.33,1473.36) -- (340.77,1470.5) -- (342.2,1473.36) ;
+    %Straight Lines [id:da4539317610414326] 
+    \draw    (340.84,1468.2) -- (342.76,1469.85) ;
+    %Straight Lines [id:da03867806183867328] 
+    \draw    (340.84,1468.2) -- (338.46,1469.97) ;
+    
+    
+    %Shape: Ellipse [id:dp7814698010039773] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (322.54,1410.27) .. controls (322.54,1409.75) and (322.97,1409.33) .. (323.5,1409.33) .. controls (324.04,1409.33) and (324.47,1409.75) .. (324.47,1410.27) .. controls (324.47,1410.79) and (324.04,1411.2) .. (323.5,1411.2) .. controls (322.97,1411.2) and (322.54,1410.79) .. (322.54,1410.27) -- cycle ;
+    %Straight Lines [id:da6581185349215584] 
+    \draw    (323.5,1411.2) -- (323.5,1413.64) ;
+    \draw   (322,1416.36) -- (323.43,1413.5) -- (324.87,1416.36) ;
+    %Straight Lines [id:da18427015638883026] 
+    \draw    (323.5,1411.2) -- (325.43,1412.85) ;
+    %Straight Lines [id:da5415325432315423] 
+    \draw    (323.5,1411.2) -- (321.12,1412.97) ;
+    
+    %Shape: Ellipse [id:dp8901508097283262] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (337.87,1410.27) .. controls (337.87,1409.75) and (338.3,1409.33) .. (338.84,1409.33) .. controls (339.37,1409.33) and (339.81,1409.75) .. (339.81,1410.27) .. controls (339.81,1410.79) and (339.37,1411.2) .. (338.84,1411.2) .. controls (338.3,1411.2) and (337.87,1410.79) .. (337.87,1410.27) -- cycle ;
+    %Straight Lines [id:da7958251783850587] 
+    \draw    (338.84,1411.2) -- (338.84,1413.64) ;
+    \draw   (337.33,1416.36) -- (338.77,1413.5) -- (340.2,1416.36) ;
+    %Straight Lines [id:da4897115615284806] 
+    \draw    (338.84,1411.2) -- (340.76,1412.85) ;
+    %Straight Lines [id:da10166293528806625] 
+    \draw    (338.84,1411.2) -- (336.46,1412.97) ;
+    
+    
+    %Shape: Ellipse [id:dp8704183554482756] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (376.2,1050.94) .. controls (376.2,1050.42) and (376.64,1050) .. (377.17,1050) .. controls (377.71,1050) and (378.14,1050.42) .. (378.14,1050.94) .. controls (378.14,1051.45) and (377.71,1051.87) .. (377.17,1051.87) .. controls (376.64,1051.87) and (376.2,1051.45) .. (376.2,1050.94) -- cycle ;
+    %Straight Lines [id:da5919843670553693] 
+    \draw    (377.17,1051.87) -- (377.17,1054.31) ;
+    \draw   (375.67,1057.03) -- (377.1,1054.16) -- (378.53,1057.03) ;
+    %Straight Lines [id:da34195302817803563] 
+    \draw    (377.17,1051.87) -- (379.1,1053.51) ;
+    %Straight Lines [id:da9632924243106222] 
+    \draw    (377.17,1051.87) -- (374.79,1053.64) ;
+    
+    %Shape: Ellipse [id:dp8794318384331474] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (376.2,994.94) .. controls (376.2,994.42) and (376.64,994) .. (377.17,994) .. controls (377.71,994) and (378.14,994.42) .. (378.14,994.94) .. controls (378.14,995.45) and (377.71,995.87) .. (377.17,995.87) .. controls (376.64,995.87) and (376.2,995.45) .. (376.2,994.94) -- cycle ;
+    %Straight Lines [id:da5764180051670176] 
+    \draw    (377.17,995.87) -- (377.17,998.31) ;
+    \draw   (375.67,1001.03) -- (377.1,998.16) -- (378.53,1001.03) ;
+    %Straight Lines [id:da6445957647215881] 
+    \draw    (377.17,995.87) -- (379.1,997.51) ;
+    %Straight Lines [id:da44752190323146035] 
+    \draw    (377.17,995.87) -- (374.79,997.64) ;
+    
+    %Shape: Ellipse [id:dp28936526284057384] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (367.54,967.27) .. controls (367.54,966.75) and (367.97,966.33) .. (368.5,966.33) .. controls (369.04,966.33) and (369.47,966.75) .. (369.47,967.27) .. controls (369.47,967.79) and (369.04,968.2) .. (368.5,968.2) .. controls (367.97,968.2) and (367.54,967.79) .. (367.54,967.27) -- cycle ;
+    %Straight Lines [id:da742229176788435] 
+    \draw    (368.5,968.2) -- (368.5,970.64) ;
+    \draw   (367,973.36) -- (368.43,970.5) -- (369.87,973.36) ;
+    %Straight Lines [id:da004466833811942683] 
+    \draw    (368.5,968.2) -- (370.43,969.85) ;
+    %Straight Lines [id:da800615306198226] 
+    \draw    (368.5,968.2) -- (366.12,969.97) ;
+    
+    %Shape: Ellipse [id:dp10600824344890425] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (382.87,967.27) .. controls (382.87,966.75) and (383.3,966.33) .. (383.84,966.33) .. controls (384.37,966.33) and (384.81,966.75) .. (384.81,967.27) .. controls (384.81,967.79) and (384.37,968.2) .. (383.84,968.2) .. controls (383.3,968.2) and (382.87,967.79) .. (382.87,967.27) -- cycle ;
+    %Straight Lines [id:da7397071015804157] 
+    \draw    (383.84,968.2) -- (383.84,970.64) ;
+    \draw   (382.33,973.36) -- (383.77,970.5) -- (385.2,973.36) ;
+    %Straight Lines [id:da27248027767956184] 
+    \draw    (383.84,968.2) -- (385.76,969.85) ;
+    %Straight Lines [id:da2748511767596242] 
+    \draw    (383.84,968.2) -- (381.46,969.97) ;
+    
+    
+    %Shape: Ellipse [id:dp7143969003120576] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (367.54,936.27) .. controls (367.54,935.75) and (367.97,935.33) .. (368.5,935.33) .. controls (369.04,935.33) and (369.47,935.75) .. (369.47,936.27) .. controls (369.47,936.79) and (369.04,937.2) .. (368.5,937.2) .. controls (367.97,937.2) and (367.54,936.79) .. (367.54,936.27) -- cycle ;
+    %Straight Lines [id:da4674953533514381] 
+    \draw    (368.5,937.2) -- (368.5,939.64) ;
+    \draw   (367,942.36) -- (368.43,939.5) -- (369.87,942.36) ;
+    %Straight Lines [id:da9137191275552425] 
+    \draw    (368.5,937.2) -- (370.43,938.85) ;
+    %Straight Lines [id:da43879551566218433] 
+    \draw    (368.5,937.2) -- (366.12,938.97) ;
+    
+    %Shape: Ellipse [id:dp2522248332911421] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (382.87,936.27) .. controls (382.87,935.75) and (383.3,935.33) .. (383.84,935.33) .. controls (384.37,935.33) and (384.81,935.75) .. (384.81,936.27) .. controls (384.81,936.79) and (384.37,937.2) .. (383.84,937.2) .. controls (383.3,937.2) and (382.87,936.79) .. (382.87,936.27) -- cycle ;
+    %Straight Lines [id:da17505253739453397] 
+    \draw    (383.84,937.2) -- (383.84,939.64) ;
+    \draw   (382.33,942.36) -- (383.77,939.5) -- (385.2,942.36) ;
+    %Straight Lines [id:da1312521883571669] 
+    \draw    (383.84,937.2) -- (385.76,938.85) ;
+    %Straight Lines [id:da802758072072415] 
+    \draw    (383.84,937.2) -- (381.46,938.97) ;
+    
+    
+    %Shape: Ellipse [id:dp08585393979665801] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (375.2,909.94) .. controls (375.2,909.42) and (375.64,909) .. (376.17,909) .. controls (376.71,909) and (377.14,909.42) .. (377.14,909.94) .. controls (377.14,910.45) and (376.71,910.87) .. (376.17,910.87) .. controls (375.64,910.87) and (375.2,910.45) .. (375.2,909.94) -- cycle ;
+    %Straight Lines [id:da8720356401714398] 
+    \draw    (376.17,910.87) -- (376.17,913.31) ;
+    \draw   (374.67,916.03) -- (376.1,913.16) -- (377.53,916.03) ;
+    %Straight Lines [id:da898298247942821] 
+    \draw    (376.17,910.87) -- (378.1,912.51) ;
+    %Straight Lines [id:da5572010948724566] 
+    \draw    (376.17,910.87) -- (373.79,912.64) ;
+    
+    %Shape: Ellipse [id:dp3058435298729305] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (368.54,885.27) .. controls (368.54,884.75) and (368.97,884.33) .. (369.5,884.33) .. controls (370.04,884.33) and (370.47,884.75) .. (370.47,885.27) .. controls (370.47,885.79) and (370.04,886.2) .. (369.5,886.2) .. controls (368.97,886.2) and (368.54,885.79) .. (368.54,885.27) -- cycle ;
+    %Straight Lines [id:da9741704518274865] 
+    \draw    (369.5,886.2) -- (369.5,888.64) ;
+    \draw   (368,891.36) -- (369.43,888.5) -- (370.87,891.36) ;
+    %Straight Lines [id:da7316611753546205] 
+    \draw    (369.5,886.2) -- (371.43,887.85) ;
+    %Straight Lines [id:da912947398215026] 
+    \draw    (369.5,886.2) -- (367.12,887.97) ;
+    
+    %Shape: Ellipse [id:dp9038630713469213] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (383.87,885.27) .. controls (383.87,884.75) and (384.3,884.33) .. (384.84,884.33) .. controls (385.37,884.33) and (385.81,884.75) .. (385.81,885.27) .. controls (385.81,885.79) and (385.37,886.2) .. (384.84,886.2) .. controls (384.3,886.2) and (383.87,885.79) .. (383.87,885.27) -- cycle ;
+    %Straight Lines [id:da826634261566163] 
+    \draw    (384.84,886.2) -- (384.84,888.64) ;
+    \draw   (383.33,891.36) -- (384.77,888.5) -- (386.2,891.36) ;
+    %Straight Lines [id:da47721102520709113] 
+    \draw    (384.84,886.2) -- (386.76,887.85) ;
+    %Straight Lines [id:da9507672906555091] 
+    \draw    (384.84,886.2) -- (382.46,887.97) ;
+    
+    
+    %Shape: Ellipse [id:dp6346090583618349] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (377.2,852.94) .. controls (377.2,852.42) and (377.64,852) .. (378.17,852) .. controls (378.71,852) and (379.14,852.42) .. (379.14,852.94) .. controls (379.14,853.45) and (378.71,853.87) .. (378.17,853.87) .. controls (377.64,853.87) and (377.2,853.45) .. (377.2,852.94) -- cycle ;
+    %Straight Lines [id:da47179391813006477] 
+    \draw    (378.17,853.87) -- (378.17,856.31) ;
+    \draw   (376.67,859.03) -- (378.1,856.16) -- (379.53,859.03) ;
+    %Straight Lines [id:da9699031095606685] 
+    \draw    (378.17,853.87) -- (380.1,855.51) ;
+    %Straight Lines [id:da8620614258583545] 
+    \draw    (378.17,853.87) -- (375.79,855.64) ;
+    
+    %Shape: Ellipse [id:dp9148806238329379] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (422.2,998.94) .. controls (422.2,998.42) and (422.64,998) .. (423.17,998) .. controls (423.71,998) and (424.14,998.42) .. (424.14,998.94) .. controls (424.14,999.45) and (423.71,999.87) .. (423.17,999.87) .. controls (422.64,999.87) and (422.2,999.45) .. (422.2,998.94) -- cycle ;
+    %Straight Lines [id:da7000627852237593] 
+    \draw    (423.17,999.87) -- (423.17,1002.31) ;
+    \draw   (421.67,1005.03) -- (423.1,1002.16) -- (424.53,1005.03) ;
+    %Straight Lines [id:da5027584111444228] 
+    \draw    (423.17,999.87) -- (425.1,1001.51) ;
+    %Straight Lines [id:da09687084758561415] 
+    \draw    (423.17,999.87) -- (420.79,1001.64) ;
+    
+    %Shape: Ellipse [id:dp18377152456344548] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (414.54,944.27) .. controls (414.54,943.75) and (414.97,943.33) .. (415.5,943.33) .. controls (416.04,943.33) and (416.47,943.75) .. (416.47,944.27) .. controls (416.47,944.79) and (416.04,945.2) .. (415.5,945.2) .. controls (414.97,945.2) and (414.54,944.79) .. (414.54,944.27) -- cycle ;
+    %Straight Lines [id:da9938126712554496] 
+    \draw    (415.5,945.2) -- (415.5,947.64) ;
+    \draw   (414,950.36) -- (415.43,947.5) -- (416.87,950.36) ;
+    %Straight Lines [id:da7362732382879864] 
+    \draw    (415.5,945.2) -- (417.43,946.85) ;
+    %Straight Lines [id:da923749864913652] 
+    \draw    (415.5,945.2) -- (413.12,946.97) ;
+    
+    %Shape: Ellipse [id:dp4898765482161338] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (429.87,944.27) .. controls (429.87,943.75) and (430.3,943.33) .. (430.84,943.33) .. controls (431.37,943.33) and (431.81,943.75) .. (431.81,944.27) .. controls (431.81,944.79) and (431.37,945.2) .. (430.84,945.2) .. controls (430.3,945.2) and (429.87,944.79) .. (429.87,944.27) -- cycle ;
+    %Straight Lines [id:da43626926420430134] 
+    \draw    (430.84,945.2) -- (430.84,947.64) ;
+    \draw   (429.33,950.36) -- (430.77,947.5) -- (432.2,950.36) ;
+    %Straight Lines [id:da0637708716369434] 
+    \draw    (430.84,945.2) -- (432.76,946.85) ;
+    %Straight Lines [id:da32662533421127726] 
+    \draw    (430.84,945.2) -- (428.46,946.97) ;
+    
+    
+    %Shape: Ellipse [id:dp6277087889798836] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (414.54,912.27) .. controls (414.54,911.75) and (414.97,911.33) .. (415.5,911.33) .. controls (416.04,911.33) and (416.47,911.75) .. (416.47,912.27) .. controls (416.47,912.79) and (416.04,913.2) .. (415.5,913.2) .. controls (414.97,913.2) and (414.54,912.79) .. (414.54,912.27) -- cycle ;
+    %Straight Lines [id:da689676980305149] 
+    \draw    (415.5,913.2) -- (415.5,915.64) ;
+    \draw   (414,918.36) -- (415.43,915.5) -- (416.87,918.36) ;
+    %Straight Lines [id:da19744007400450947] 
+    \draw    (415.5,913.2) -- (417.43,914.85) ;
+    %Straight Lines [id:da4027509344563298] 
+    \draw    (415.5,913.2) -- (413.12,914.97) ;
+    
+    %Shape: Ellipse [id:dp7504164590520832] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (429.87,912.27) .. controls (429.87,911.75) and (430.3,911.33) .. (430.84,911.33) .. controls (431.37,911.33) and (431.81,911.75) .. (431.81,912.27) .. controls (431.81,912.79) and (431.37,913.2) .. (430.84,913.2) .. controls (430.3,913.2) and (429.87,912.79) .. (429.87,912.27) -- cycle ;
+    %Straight Lines [id:da9177844593799716] 
+    \draw    (430.84,913.2) -- (430.84,915.64) ;
+    \draw   (429.33,918.36) -- (430.77,915.5) -- (432.2,918.36) ;
+    %Straight Lines [id:da019643537387372012] 
+    \draw    (430.84,913.2) -- (432.76,914.85) ;
+    %Straight Lines [id:da3667163067849366] 
+    \draw    (430.84,913.2) -- (428.46,914.97) ;
+    
+    
+    %Shape: Ellipse [id:dp04478755563786918] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (422.2,967.94) .. controls (422.2,967.42) and (422.64,967) .. (423.17,967) .. controls (423.71,967) and (424.14,967.42) .. (424.14,967.94) .. controls (424.14,968.45) and (423.71,968.87) .. (423.17,968.87) .. controls (422.64,968.87) and (422.2,968.45) .. (422.2,967.94) -- cycle ;
+    %Straight Lines [id:da3697284540945709] 
+    \draw    (423.17,968.87) -- (423.17,971.31) ;
+    \draw   (421.67,974.03) -- (423.1,971.16) -- (424.53,974.03) ;
+    %Straight Lines [id:da6451455210064094] 
+    \draw    (423.17,968.87) -- (425.1,970.51) ;
+    %Straight Lines [id:da5955245672442122] 
+    \draw    (423.17,968.87) -- (420.79,970.64) ;
+    
+    %Shape: Ellipse [id:dp7151485265300193] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (421.2,885.94) .. controls (421.2,885.42) and (421.64,885) .. (422.17,885) .. controls (422.71,885) and (423.14,885.42) .. (423.14,885.94) .. controls (423.14,886.45) and (422.71,886.87) .. (422.17,886.87) .. controls (421.64,886.87) and (421.2,886.45) .. (421.2,885.94) -- cycle ;
+    %Straight Lines [id:da1573160269589815] 
+    \draw    (422.17,886.87) -- (422.17,889.31) ;
+    \draw   (420.67,892.03) -- (422.1,889.16) -- (423.53,892.03) ;
+    %Straight Lines [id:da6717465939873379] 
+    \draw    (422.17,886.87) -- (424.1,888.51) ;
+    %Straight Lines [id:da82929601065032] 
+    \draw    (422.17,886.87) -- (419.79,888.64) ;
+    
+    %Shape: Ellipse [id:dp5605535759666054] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (422.2,827.94) .. controls (422.2,827.42) and (422.64,827) .. (423.17,827) .. controls (423.71,827) and (424.14,827.42) .. (424.14,827.94) .. controls (424.14,828.45) and (423.71,828.87) .. (423.17,828.87) .. controls (422.64,828.87) and (422.2,828.45) .. (422.2,827.94) -- cycle ;
+    %Straight Lines [id:da5375981195425548] 
+    \draw    (423.17,828.87) -- (423.17,831.31) ;
+    \draw   (421.67,834.03) -- (423.1,831.16) -- (424.53,834.03) ;
+    %Straight Lines [id:da5251974832371591] 
+    \draw    (423.17,828.87) -- (425.1,830.51) ;
+    %Straight Lines [id:da41555478282899916] 
+    \draw    (423.17,828.87) -- (420.79,830.64) ;
+    
+    %Shape: Ellipse [id:dp09647332017212862] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (466.54,522.27) .. controls (466.54,521.75) and (466.97,521.33) .. (467.5,521.33) .. controls (468.04,521.33) and (468.47,521.75) .. (468.47,522.27) .. controls (468.47,522.79) and (468.04,523.2) .. (467.5,523.2) .. controls (466.97,523.2) and (466.54,522.79) .. (466.54,522.27) -- cycle ;
+    %Straight Lines [id:da4855090255663075] 
+    \draw    (467.5,523.2) -- (467.5,525.64) ;
+    \draw   (466,528.36) -- (467.43,525.5) -- (468.87,528.36) ;
+    %Straight Lines [id:da7588906961529822] 
+    \draw    (467.5,523.2) -- (469.43,524.85) ;
+    %Straight Lines [id:da9380105868638524] 
+    \draw    (467.5,523.2) -- (465.12,524.97) ;
+    
+    %Shape: Ellipse [id:dp5511446940788247] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (466.54,492.27) .. controls (466.54,491.75) and (466.97,491.33) .. (467.5,491.33) .. controls (468.04,491.33) and (468.47,491.75) .. (468.47,492.27) .. controls (468.47,492.79) and (468.04,493.2) .. (467.5,493.2) .. controls (466.97,493.2) and (466.54,492.79) .. (466.54,492.27) -- cycle ;
+    %Straight Lines [id:da1951671304322471] 
+    \draw    (467.5,493.2) -- (467.5,495.64) ;
+    \draw   (466,498.36) -- (467.43,495.5) -- (468.87,498.36) ;
+    %Straight Lines [id:da9934937847856435] 
+    \draw    (467.5,493.2) -- (469.43,494.85) ;
+    %Straight Lines [id:da7651231415193431] 
+    \draw    (467.5,493.2) -- (465.12,494.97) ;
+    
+    %Shape: Ellipse [id:dp06777291176576039] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (458.87,466.6) .. controls (458.87,466.09) and (459.3,465.67) .. (459.84,465.67) .. controls (460.37,465.67) and (460.81,466.09) .. (460.81,466.6) .. controls (460.81,467.12) and (460.37,467.54) .. (459.84,467.54) .. controls (459.3,467.54) and (458.87,467.12) .. (458.87,466.6) -- cycle ;
+    %Straight Lines [id:da908321795300046] 
+    \draw    (459.84,467.54) -- (459.84,469.98) ;
+    \draw   (458.33,472.7) -- (459.77,469.83) -- (461.2,472.7) ;
+    %Straight Lines [id:da939658323635223] 
+    \draw    (459.84,467.54) -- (461.76,469.18) ;
+    %Straight Lines [id:da8485435717945731] 
+    \draw    (459.84,467.54) -- (457.46,469.3) ;
+    
+    %Shape: Ellipse [id:dp6526164582204776] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (474.2,466.6) .. controls (474.2,466.09) and (474.64,465.67) .. (475.17,465.67) .. controls (475.71,465.67) and (476.14,466.09) .. (476.14,466.6) .. controls (476.14,467.12) and (475.71,467.54) .. (475.17,467.54) .. controls (474.64,467.54) and (474.2,467.12) .. (474.2,466.6) -- cycle ;
+    %Straight Lines [id:da7195340122430853] 
+    \draw    (475.17,467.54) -- (475.17,469.98) ;
+    \draw   (473.67,472.7) -- (475.1,469.83) -- (476.53,472.7) ;
+    %Straight Lines [id:da972684557501504] 
+    \draw    (475.17,467.54) -- (477.1,469.18) ;
+    %Straight Lines [id:da2739779408833376] 
+    \draw    (475.17,467.54) -- (472.79,469.3) ;
+    
+    
+    %Shape: Ellipse [id:dp28054831052753726] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (460.87,358.6) .. controls (460.87,358.09) and (461.3,357.67) .. (461.84,357.67) .. controls (462.37,357.67) and (462.81,358.09) .. (462.81,358.6) .. controls (462.81,359.12) and (462.37,359.54) .. (461.84,359.54) .. controls (461.3,359.54) and (460.87,359.12) .. (460.87,358.6) -- cycle ;
+    %Straight Lines [id:da690867940534172] 
+    \draw    (461.84,359.54) -- (461.84,361.98) ;
+    \draw   (460.33,364.7) -- (461.77,361.83) -- (463.2,364.7) ;
+    %Straight Lines [id:da40632250608885623] 
+    \draw    (461.84,359.54) -- (463.76,361.18) ;
+    %Straight Lines [id:da8804630525868771] 
+    \draw    (461.84,359.54) -- (459.46,361.3) ;
+    
+    %Shape: Ellipse [id:dp4602580304759203] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (476.2,358.6) .. controls (476.2,358.09) and (476.64,357.67) .. (477.17,357.67) .. controls (477.71,357.67) and (478.14,358.09) .. (478.14,358.6) .. controls (478.14,359.12) and (477.71,359.54) .. (477.17,359.54) .. controls (476.64,359.54) and (476.2,359.12) .. (476.2,358.6) -- cycle ;
+    %Straight Lines [id:da38734193891352797] 
+    \draw    (477.17,359.54) -- (477.17,361.98) ;
+    \draw   (475.67,364.7) -- (477.1,361.83) -- (478.53,364.7) ;
+    %Straight Lines [id:da6550380341760631] 
+    \draw    (477.17,359.54) -- (479.1,361.18) ;
+    %Straight Lines [id:da45795242355033294] 
+    \draw    (477.17,359.54) -- (474.79,361.3) ;
+    
+    
+    %Shape: Ellipse [id:dp9272168221487707] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (467.54,332.27) .. controls (467.54,331.75) and (467.97,331.33) .. (468.5,331.33) .. controls (469.04,331.33) and (469.47,331.75) .. (469.47,332.27) .. controls (469.47,332.79) and (469.04,333.2) .. (468.5,333.2) .. controls (467.97,333.2) and (467.54,332.79) .. (467.54,332.27) -- cycle ;
+    %Straight Lines [id:da3688259263248923] 
+    \draw    (468.5,333.2) -- (468.5,335.64) ;
+    \draw   (467,338.36) -- (468.43,335.5) -- (469.87,338.36) ;
+    %Straight Lines [id:da2481091581288719] 
+    \draw    (468.5,333.2) -- (470.43,334.85) ;
+    %Straight Lines [id:da9586751251497334] 
+    \draw    (468.5,333.2) -- (466.12,334.97) ;
+    
+    %Shape: Ellipse [id:dp8971027548670814] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (467.54,162.27) .. controls (467.54,161.75) and (467.97,161.33) .. (468.5,161.33) .. controls (469.04,161.33) and (469.47,161.75) .. (469.47,162.27) .. controls (469.47,162.79) and (469.04,163.2) .. (468.5,163.2) .. controls (467.97,163.2) and (467.54,162.79) .. (467.54,162.27) -- cycle ;
+    %Straight Lines [id:da4260878936105097] 
+    \draw    (468.5,163.2) -- (468.5,165.64) ;
+    \draw   (467,168.36) -- (468.43,165.5) -- (469.87,168.36) ;
+    %Straight Lines [id:da3272436233847398] 
+    \draw    (468.5,163.2) -- (470.43,164.85) ;
+    %Straight Lines [id:da5195443118961247] 
+    \draw    (468.5,163.2) -- (466.12,164.97) ;
+    
+    %Shape: Ellipse [id:dp8732483698460947] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (513.54,494.27) .. controls (513.54,493.75) and (513.97,493.33) .. (514.5,493.33) .. controls (515.04,493.33) and (515.47,493.75) .. (515.47,494.27) .. controls (515.47,494.79) and (515.04,495.2) .. (514.5,495.2) .. controls (513.97,495.2) and (513.54,494.79) .. (513.54,494.27) -- cycle ;
+    %Straight Lines [id:da15895142491188974] 
+    \draw    (514.5,495.2) -- (514.5,497.64) ;
+    \draw   (513,500.36) -- (514.43,497.5) -- (515.87,500.36) ;
+    %Straight Lines [id:da5656919107421283] 
+    \draw    (514.5,495.2) -- (516.43,496.85) ;
+    %Straight Lines [id:da8926620812273001] 
+    \draw    (514.5,495.2) -- (512.12,496.97) ;
+    
+    %Shape: Ellipse [id:dp3026230486225501] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (513.54,464.27) .. controls (513.54,463.75) and (513.97,463.33) .. (514.5,463.33) .. controls (515.04,463.33) and (515.47,463.75) .. (515.47,464.27) .. controls (515.47,464.79) and (515.04,465.2) .. (514.5,465.2) .. controls (513.97,465.2) and (513.54,464.79) .. (513.54,464.27) -- cycle ;
+    %Straight Lines [id:da03821129452527461] 
+    \draw    (514.5,465.2) -- (514.5,467.64) ;
+    \draw   (513,470.36) -- (514.43,467.5) -- (515.87,470.36) ;
+    %Straight Lines [id:da18769802706559457] 
+    \draw    (514.5,465.2) -- (516.43,466.85) ;
+    %Straight Lines [id:da8747131814152886] 
+    \draw    (514.5,465.2) -- (512.12,466.97) ;
+    
+    %Shape: Ellipse [id:dp827024156728771] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (506.87,438.6) .. controls (506.87,438.09) and (507.3,437.67) .. (507.84,437.67) .. controls (508.37,437.67) and (508.81,438.09) .. (508.81,438.6) .. controls (508.81,439.12) and (508.37,439.54) .. (507.84,439.54) .. controls (507.3,439.54) and (506.87,439.12) .. (506.87,438.6) -- cycle ;
+    %Straight Lines [id:da6213823063804387] 
+    \draw    (507.84,439.54) -- (507.84,441.98) ;
+    \draw   (506.33,444.7) -- (507.77,441.83) -- (509.2,444.7) ;
+    %Straight Lines [id:da3137760750629113] 
+    \draw    (507.84,439.54) -- (509.76,441.18) ;
+    %Straight Lines [id:da5595640458519953] 
+    \draw    (507.84,439.54) -- (505.46,441.3) ;
+    
+    %Shape: Ellipse [id:dp2615381658921545] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (522.2,438.6) .. controls (522.2,438.09) and (522.64,437.67) .. (523.17,437.67) .. controls (523.71,437.67) and (524.14,438.09) .. (524.14,438.6) .. controls (524.14,439.12) and (523.71,439.54) .. (523.17,439.54) .. controls (522.64,439.54) and (522.2,439.12) .. (522.2,438.6) -- cycle ;
+    %Straight Lines [id:da9002462997408036] 
+    \draw    (523.17,439.54) -- (523.17,441.98) ;
+    \draw   (521.67,444.7) -- (523.1,441.83) -- (524.53,444.7) ;
+    %Straight Lines [id:da360904087762435] 
+    \draw    (523.17,439.54) -- (525.1,441.18) ;
+    %Straight Lines [id:da3958212630041851] 
+    \draw    (523.17,439.54) -- (520.79,441.3) ;
+    
+    
+    %Shape: Ellipse [id:dp6159197495082855] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (506.87,408.6) .. controls (506.87,408.09) and (507.3,407.67) .. (507.84,407.67) .. controls (508.37,407.67) and (508.81,408.09) .. (508.81,408.6) .. controls (508.81,409.12) and (508.37,409.54) .. (507.84,409.54) .. controls (507.3,409.54) and (506.87,409.12) .. (506.87,408.6) -- cycle ;
+    %Straight Lines [id:da12892159262472158] 
+    \draw    (507.84,409.54) -- (507.84,411.98) ;
+    \draw   (506.33,414.7) -- (507.77,411.83) -- (509.2,414.7) ;
+    %Straight Lines [id:da23770337796586438] 
+    \draw    (507.84,409.54) -- (509.76,411.18) ;
+    %Straight Lines [id:da21909218111056594] 
+    \draw    (507.84,409.54) -- (505.46,411.3) ;
+    
+    %Shape: Ellipse [id:dp6380087856965488] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (522.2,408.6) .. controls (522.2,408.09) and (522.64,407.67) .. (523.17,407.67) .. controls (523.71,407.67) and (524.14,408.09) .. (524.14,408.6) .. controls (524.14,409.12) and (523.71,409.54) .. (523.17,409.54) .. controls (522.64,409.54) and (522.2,409.12) .. (522.2,408.6) -- cycle ;
+    %Straight Lines [id:da057317575516556696] 
+    \draw    (523.17,409.54) -- (523.17,411.98) ;
+    \draw   (521.67,414.7) -- (523.1,411.83) -- (524.53,414.7) ;
+    %Straight Lines [id:da06441467654304] 
+    \draw    (523.17,409.54) -- (525.1,411.18) ;
+    %Straight Lines [id:da8353186416977907] 
+    \draw    (523.17,409.54) -- (520.79,411.3) ;
+    
+    
+    %Shape: Ellipse [id:dp4271322578912615] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (502.04,380.77) .. controls (502.04,380.25) and (502.47,379.83) .. (503,379.83) .. controls (503.54,379.83) and (503.97,380.25) .. (503.97,380.77) .. controls (503.97,381.29) and (503.54,381.7) .. (503,381.7) .. controls (502.47,381.7) and (502.04,381.29) .. (502.04,380.77) -- cycle ;
+    %Straight Lines [id:da47464381806380973] 
+    \draw    (503,381.7) -- (503,384.14) ;
+    \draw   (501.5,386.86) -- (502.93,384) -- (504.37,386.86) ;
+    %Straight Lines [id:da4721067994464814] 
+    \draw    (503,381.7) -- (504.93,383.35) ;
+    %Straight Lines [id:da88135639195583] 
+    \draw    (503,381.7) -- (500.62,383.47) ;
+    
+    %Shape: Ellipse [id:dp49040718771928793] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (513.53,380.77) .. controls (513.53,380.25) and (513.97,379.83) .. (514.5,379.83) .. controls (515.04,379.83) and (515.47,380.25) .. (515.47,380.77) .. controls (515.47,381.29) and (515.04,381.7) .. (514.5,381.7) .. controls (513.97,381.7) and (513.53,381.29) .. (513.53,380.77) -- cycle ;
+    %Straight Lines [id:da1592963194022745] 
+    \draw    (514.5,381.7) -- (514.5,384.14) ;
+    \draw   (513,386.86) -- (514.43,384) -- (515.87,386.86) ;
+    %Straight Lines [id:da298408756846714] 
+    \draw    (514.5,381.7) -- (516.43,383.35) ;
+    %Straight Lines [id:da07120075042293594] 
+    \draw    (514.5,381.7) -- (512.12,383.47) ;
+    
+    %Shape: Ellipse [id:dp7314358886555712] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (525.04,380.77) .. controls (525.04,380.25) and (525.47,379.83) .. (526,379.83) .. controls (526.54,379.83) and (526.97,380.25) .. (526.97,380.77) .. controls (526.97,381.29) and (526.54,381.7) .. (526,381.7) .. controls (525.47,381.7) and (525.04,381.29) .. (525.04,380.77) -- cycle ;
+    %Straight Lines [id:da48554498145288316] 
+    \draw    (526,381.7) -- (526,384.14) ;
+    \draw   (524.5,386.86) -- (525.93,384) -- (527.37,386.86) ;
+    %Straight Lines [id:da926835039089301] 
+    \draw    (526,381.7) -- (527.93,383.35) ;
+    %Straight Lines [id:da9819996757410467] 
+    \draw    (526,381.7) -- (523.62,383.47) ;
+    
+    
+    %Shape: Ellipse [id:dp04362713740125268] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (504.04,303.77) .. controls (504.04,303.25) and (504.47,302.83) .. (505,302.83) .. controls (505.54,302.83) and (505.97,303.25) .. (505.97,303.77) .. controls (505.97,304.29) and (505.54,304.7) .. (505,304.7) .. controls (504.47,304.7) and (504.04,304.29) .. (504.04,303.77) -- cycle ;
+    %Straight Lines [id:da7343112391460145] 
+    \draw    (505,304.7) -- (505,307.14) ;
+    \draw   (503.5,309.86) -- (504.93,307) -- (506.37,309.86) ;
+    %Straight Lines [id:da44196295953639897] 
+    \draw    (505,304.7) -- (506.93,306.35) ;
+    %Straight Lines [id:da7621056420078227] 
+    \draw    (505,304.7) -- (502.62,306.47) ;
+    
+    %Shape: Ellipse [id:dp9352569390652539] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (515.53,303.77) .. controls (515.53,303.25) and (515.97,302.83) .. (516.5,302.83) .. controls (517.04,302.83) and (517.47,303.25) .. (517.47,303.77) .. controls (517.47,304.29) and (517.04,304.7) .. (516.5,304.7) .. controls (515.97,304.7) and (515.53,304.29) .. (515.53,303.77) -- cycle ;
+    %Straight Lines [id:da4576212621428928] 
+    \draw    (516.5,304.7) -- (516.5,307.14) ;
+    \draw   (515,309.86) -- (516.43,307) -- (517.87,309.86) ;
+    %Straight Lines [id:da09891569127952504] 
+    \draw    (516.5,304.7) -- (518.43,306.35) ;
+    %Straight Lines [id:da6785471649463082] 
+    \draw    (516.5,304.7) -- (514.12,306.47) ;
+    
+    %Shape: Ellipse [id:dp6201081610335986] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (527.04,303.77) .. controls (527.04,303.25) and (527.47,302.83) .. (528,302.83) .. controls (528.54,302.83) and (528.97,303.25) .. (528.97,303.77) .. controls (528.97,304.29) and (528.54,304.7) .. (528,304.7) .. controls (527.47,304.7) and (527.04,304.29) .. (527.04,303.77) -- cycle ;
+    %Straight Lines [id:da02420805966676043] 
+    \draw    (528,304.7) -- (528,307.14) ;
+    \draw   (526.5,309.86) -- (527.93,307) -- (529.37,309.86) ;
+    %Straight Lines [id:da7190137246184172] 
+    \draw    (528,304.7) -- (529.93,306.35) ;
+    %Straight Lines [id:da8985285351407841] 
+    \draw    (528,304.7) -- (525.62,306.47) ;
+    
+    
+    %Shape: Ellipse [id:dp12425329441840294] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (604.54,275.27) .. controls (604.54,274.75) and (604.97,274.33) .. (605.5,274.33) .. controls (606.04,274.33) and (606.47,274.75) .. (606.47,275.27) .. controls (606.47,275.79) and (606.04,276.2) .. (605.5,276.2) .. controls (604.97,276.2) and (604.54,275.79) .. (604.54,275.27) -- cycle ;
+    %Straight Lines [id:da7935705417927865] 
+    \draw    (605.5,276.2) -- (605.5,278.64) ;
+    \draw   (604,281.36) -- (605.43,278.5) -- (606.87,281.36) ;
+    %Straight Lines [id:da24881797904702863] 
+    \draw    (605.5,276.2) -- (607.43,277.85) ;
+    %Straight Lines [id:da5193845268906832] 
+    \draw    (605.5,276.2) -- (603.12,277.97) ;
+    
+    %Shape: Ellipse [id:dp7636815497699503] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (638.54,194.27) .. controls (638.54,193.75) and (638.97,193.33) .. (639.5,193.33) .. controls (640.04,193.33) and (640.47,193.75) .. (640.47,194.27) .. controls (640.47,194.79) and (640.04,195.2) .. (639.5,195.2) .. controls (638.97,195.2) and (638.54,194.79) .. (638.54,194.27) -- cycle ;
+    %Straight Lines [id:da8397400825946173] 
+    \draw    (639.5,195.2) -- (639.5,197.64) ;
+    \draw   (638,200.36) -- (639.43,197.5) -- (640.87,200.36) ;
+    %Straight Lines [id:da9698188324674459] 
+    \draw    (639.5,195.2) -- (641.43,196.85) ;
+    %Straight Lines [id:da646705563777358] 
+    \draw    (639.5,195.2) -- (637.12,196.97) ;
+    
+    %Shape: Ellipse [id:dp533570608032359] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (638.54,136.27) .. controls (638.54,135.75) and (638.97,135.33) .. (639.5,135.33) .. controls (640.04,135.33) and (640.47,135.75) .. (640.47,136.27) .. controls (640.47,136.79) and (640.04,137.2) .. (639.5,137.2) .. controls (638.97,137.2) and (638.54,136.79) .. (638.54,136.27) -- cycle ;
+    %Straight Lines [id:da42532714759191004] 
+    \draw    (639.5,137.2) -- (639.5,139.64) ;
+    \draw   (638,142.36) -- (639.43,139.5) -- (640.87,142.36) ;
+    %Straight Lines [id:da8551082642605929] 
+    \draw    (639.5,137.2) -- (641.43,138.85) ;
+    %Straight Lines [id:da1661651435702325] 
+    \draw    (639.5,137.2) -- (637.12,138.97) ;
+    
+    %Shape: Ellipse [id:dp016857390334298783] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (560.54,305.27) .. controls (560.54,304.75) and (560.97,304.33) .. (561.5,304.33) .. controls (562.04,304.33) and (562.47,304.75) .. (562.47,305.27) .. controls (562.47,305.79) and (562.04,306.2) .. (561.5,306.2) .. controls (560.97,306.2) and (560.54,305.79) .. (560.54,305.27) -- cycle ;
+    %Straight Lines [id:da04762172209345872] 
+    \draw    (561.5,306.2) -- (561.5,308.64) ;
+    \draw   (560,311.36) -- (561.43,308.5) -- (562.87,311.36) ;
+    %Straight Lines [id:da1911908026680813] 
+    \draw    (561.5,306.2) -- (563.43,307.85) ;
+    %Straight Lines [id:da6915711235970954] 
+    \draw    (561.5,306.2) -- (559.12,307.97) ;
+    
+    %Shape: Ellipse [id:dp29751572489625877] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (559.54,273.27) .. controls (559.54,272.75) and (559.97,272.33) .. (560.5,272.33) .. controls (561.04,272.33) and (561.47,272.75) .. (561.47,273.27) .. controls (561.47,273.79) and (561.04,274.2) .. (560.5,274.2) .. controls (559.97,274.2) and (559.54,273.79) .. (559.54,273.27) -- cycle ;
+    %Straight Lines [id:da6768287777168864] 
+    \draw    (560.5,274.2) -- (560.5,276.64) ;
+    \draw   (559,279.36) -- (560.43,276.5) -- (561.87,279.36) ;
+    %Straight Lines [id:da06764225732290519] 
+    \draw    (560.5,274.2) -- (562.43,275.85) ;
+    %Straight Lines [id:da7636239601922821] 
+    \draw    (560.5,274.2) -- (558.12,275.97) ;
+    
+    %Shape: Ellipse [id:dp8252290769525394] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (552.87,247.6) .. controls (552.87,247.09) and (553.3,246.67) .. (553.84,246.67) .. controls (554.37,246.67) and (554.81,247.09) .. (554.81,247.6) .. controls (554.81,248.12) and (554.37,248.54) .. (553.84,248.54) .. controls (553.3,248.54) and (552.87,248.12) .. (552.87,247.6) -- cycle ;
+    %Straight Lines [id:da5266952412587476] 
+    \draw    (553.84,248.54) -- (553.84,250.98) ;
+    \draw   (552.33,253.7) -- (553.77,250.83) -- (555.2,253.7) ;
+    %Straight Lines [id:da7551611027910263] 
+    \draw    (553.84,248.54) -- (555.76,250.18) ;
+    %Straight Lines [id:da6254876037489239] 
+    \draw    (553.84,248.54) -- (551.46,250.3) ;
+    
+    %Shape: Ellipse [id:dp0640738995401684] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (568.2,247.6) .. controls (568.2,247.09) and (568.64,246.67) .. (569.17,246.67) .. controls (569.71,246.67) and (570.14,247.09) .. (570.14,247.6) .. controls (570.14,248.12) and (569.71,248.54) .. (569.17,248.54) .. controls (568.64,248.54) and (568.2,248.12) .. (568.2,247.6) -- cycle ;
+    %Straight Lines [id:da3354866683866229] 
+    \draw    (569.17,248.54) -- (569.17,250.98) ;
+    \draw   (567.67,253.7) -- (569.1,250.83) -- (570.53,253.7) ;
+    %Straight Lines [id:da9976298612275576] 
+    \draw    (569.17,248.54) -- (571.1,250.18) ;
+    %Straight Lines [id:da946512156200009] 
+    \draw    (569.17,248.54) -- (566.79,250.3) ;
+    
+    
+    %Shape: Ellipse [id:dp7181404601943282] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (550.87,50.6) .. controls (550.87,50.09) and (551.3,49.67) .. (551.84,49.67) .. controls (552.37,49.67) and (552.81,50.09) .. (552.81,50.6) .. controls (552.81,51.12) and (552.37,51.54) .. (551.84,51.54) .. controls (551.3,51.54) and (550.87,51.12) .. (550.87,50.6) -- cycle ;
+    %Straight Lines [id:da5263370107450955] 
+    \draw    (551.84,51.54) -- (551.84,53.98) ;
+    \draw   (550.33,56.7) -- (551.77,53.83) -- (553.2,56.7) ;
+    %Straight Lines [id:da9702867378427449] 
+    \draw    (551.84,51.54) -- (553.76,53.18) ;
+    %Straight Lines [id:da6864673811382309] 
+    \draw    (551.84,51.54) -- (549.46,53.3) ;
+    
+    %Shape: Ellipse [id:dp41125490184301094] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (566.2,50.6) .. controls (566.2,50.09) and (566.64,49.67) .. (567.17,49.67) .. controls (567.71,49.67) and (568.14,50.09) .. (568.14,50.6) .. controls (568.14,51.12) and (567.71,51.54) .. (567.17,51.54) .. controls (566.64,51.54) and (566.2,51.12) .. (566.2,50.6) -- cycle ;
+    %Straight Lines [id:da25994190849018395] 
+    \draw    (567.17,51.54) -- (567.17,53.98) ;
+    \draw   (565.67,56.7) -- (567.1,53.83) -- (568.53,56.7) ;
+    %Straight Lines [id:da3155370053931117] 
+    \draw    (567.17,51.54) -- (569.1,53.18) ;
+    %Straight Lines [id:da3413700063323315] 
+    \draw    (567.17,51.54) -- (564.79,53.3) ;
+    
+    
+    %Shape: Ellipse [id:dp3811670076129714] 
+    \draw  [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ,fill opacity=1 ] (558.54,16.27) .. controls (558.54,15.75) and (558.97,15.33) .. (559.5,15.33) .. controls (560.04,15.33) and (560.47,15.75) .. (560.47,16.27) .. controls (560.47,16.79) and (560.04,17.2) .. (559.5,17.2) .. controls (558.97,17.2) and (558.54,16.79) .. (558.54,16.27) -- cycle ;
+    %Straight Lines [id:da5226680926272476] 
+    \draw    (559.5,17.2) -- (559.5,19.64) ;
+    \draw   (558,22.36) -- (559.43,19.5) -- (560.87,22.36) ;
+    %Straight Lines [id:da10569510736442034] 
+    \draw    (559.5,17.2) -- (561.43,18.85) ;
+    %Straight Lines [id:da9662841112269833] 
+    \draw    (559.5,17.2) -- (557.12,18.97) ;
+    
+    
+    % Text Node
+    \draw (5,286.17) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:16:53.068};
+    % Text Node
+    \draw (5,256.04) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:17:00.737};
+    % Text Node
+    \draw (5,225.91) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:17:01.173};
+    % Text Node
+    \draw (5,195.78) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:17:01.494};
+    % Text Node
+    \draw (5,165.65) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:17:01.665};
+    % Text Node
+    \draw (5,135.52) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:17:03.729};
+    % Text Node
+    \draw (5,105.39) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:17:11.17};
+    % Text Node
+    \draw (5,75.26) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:17:19.475};
+    % Text Node
+    \draw (5,45.13) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:17:26.909};
+    % Text Node
+    \draw (5,15) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:17:48.304};
+    % Text Node
+    \draw (5,587.47) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:16:06.565};
+    % Text Node
+    \draw (5,557.34) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:16:09.072};
+    % Text Node
+    \draw (5,527.21) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:16:26.924};
+    % Text Node
+    \draw (5,497.08) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:16:27.424};
+    % Text Node
+    \draw (5,466.95) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:16:30.166};
+    % Text Node
+    \draw (5,436.82) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:16:31.916};
+    % Text Node
+    \draw (5,406.69) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:16:41.178};
+    % Text Node
+    \draw (5,376.56) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:16:43.32};
+    % Text Node
+    \draw (5,346.43) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:16:43.741};
+    % Text Node
+    \draw (5,316.3) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:16:46.319};
+    % Text Node
+    \draw (3,892.13) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:59.525};
+    % Text Node
+    \draw (3,861.62) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:15:00.196};
+    % Text Node
+    \draw (3,831.11) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:15:03.688};
+    % Text Node
+    \draw (3,800.6) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:15:04.188};
+    % Text Node
+    \draw (3,770.09) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:15:30.503};
+    % Text Node
+    \draw (3,739.58) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:15:30.931};
+    % Text Node
+    \draw (3,709.07) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:15:31.831};
+    % Text Node
+    \draw (3,678.56) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:15:36.587};
+    % Text Node
+    \draw (5,647.78) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:15:39.015};
+    % Text Node
+    \draw (5,617.6) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:15:51.926};
+    % Text Node
+    \draw (3,1197.23) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:20.27};
+    % Text Node
+    \draw (3,1166.72) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:20.349};
+    % Text Node
+    \draw (3,1136.21) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:21.277};
+    % Text Node
+    \draw (3,1105.7) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:22.698};
+    % Text Node
+    \draw (3,1075.19) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:24.962};
+    % Text Node
+    \draw (3,1044.68) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:40.779};
+    % Text Node
+    \draw (3,1014.17) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:40.851};
+    % Text Node
+    \draw (3,983.66) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:43.514};
+    % Text Node
+    \draw (3,953.15) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:50.441};
+    % Text Node
+    \draw (3,922.64) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:56.276};
+    % Text Node
+    \draw (3,1496.92) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:08:53.616};
+    % Text Node
+    \draw (3,1467.56) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:08:53.93};
+    % Text Node
+    \draw (3,1438.2) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:08:55.537};
+    % Text Node
+    \draw (3,1408.84) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:09:15.853};
+    % Text Node
+    \draw (3,1379.48) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:09:25.787};
+    % Text Node
+    \draw (3,1350.12) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:09:28.272};
+    % Text Node
+    \draw (3,1319.34) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:09:34.278};
+    % Text Node
+    \draw (3,1288.76) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:11:07.761};
+    % Text Node
+    \draw (3,1258.25) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:11:07.833};
+    % Text Node
+    \draw (3,1227.74) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:14:16.357};
+    % Text Node
+    \draw (3,1585) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:08:52.281};
+    % Text Node
+    \draw (3,1555.64) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:08:52.352};
+    % Text Node
+    \draw (3,1526.28) node [anchor=north west][inner sep=0.75pt]  [font=\scriptsize] [align=left] {12:08:52.424};
+    % Text Node
+    \draw (108,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {2};
+    % Text Node
+    \draw (147.08,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {3};
+    % Text Node
+    \draw (186.16,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {6};
+    % Text Node
+    \draw (225.24,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {9};
+    % Text Node
+    \draw (270.32,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {10};
+    % Text Node
+    \draw (322.4,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {11};
+    % Text Node
+    \draw (366.48,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {12};
+    % Text Node
+    \draw (413.56,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {13};
+    % Text Node
+    \draw (461.64,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {29};
+    % Text Node
+    \draw (503.72,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {30};
+    % Text Node
+    \draw (551.8,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {31};
+    % Text Node
+    \draw (600.88,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {35};
+    % Text Node
+    \draw (640,1604.59) node [anchor=north west][inner sep=0.75pt]   [align=left] {36};
+\end{tikzpicture}
+\caption{Variazione nel tempo del numero di persone che osservano le varie esibizioni.}
+\label{person_over_time}
+\end{figure}
+
+\newpage
+\bibliography{bibliography}
+
+
 \end{document}

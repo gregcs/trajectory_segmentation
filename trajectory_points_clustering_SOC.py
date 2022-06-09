@@ -20,14 +20,17 @@ def classify_point_trajectories(data_path, to_save_path, eps , tau, undefined, m
 
 minimum_sampling_interval = 0.071
 (eps,tau) = eps_tau(0.85, minimum_sampling_interval, 5)
-undefined = 1.2 * eps
+
 min_mov = 0.5
+eps = 1
+undefined = 1.2 * eps
+tau = 10
 
 classify_point_trajectories('data/trajectory_points/trajectory_points_57.csv', 
-                                'data/trajectory_segments_SOC/trajectory_points_with_stops_57.csv', eps , tau, undefined, min_mov, True, 'person_57')
+                                f'data/trajectory_segments_SOC/stop_points_p57_SOC_eps{eps}_tau{tau}_minMov05.csv', eps , tau, undefined, min_mov, True, 'person_57')
 
 classify_point_trajectories('data/trajectory_points/trajectory_points_67.csv', 
-                                'data/trajectory_segments_SOC/trajectory_points_with_stops_67.csv', eps , tau, undefined, min_mov, True, 'person_67')
+                                f'data/trajectory_segments_SOC/stop_points_p67_SOC_eps{eps}_tau{tau}_minMov05.csv', eps , tau, undefined, min_mov, True, 'person_67')
 
 classify_point_trajectories('data/trajectory_points/trajectory_points_68.csv', 
-                                'data/trajectory_segments_SOC/trajectory_points_with_stops_68.csv', eps , tau, undefined, min_mov, True, 'person_68')
+                                f'data/trajectory_segments_SOC/stop_points_p68_SOC_eps{eps}_tau{tau}_minMov05.csv', eps , tau, undefined, min_mov, True, 'person_68')

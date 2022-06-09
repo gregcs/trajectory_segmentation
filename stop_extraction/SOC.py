@@ -1,4 +1,6 @@
 import itertools
+from re import I
+from struct import pack
 from this import d
 from dateutil import parser
 import json
@@ -90,44 +92,33 @@ class SOCStopExtractor:
     #It's defined as min{r | r <= Eps and Seq(p, r) is a core sequence} if Seq(p, Eps) is a core sequence;
     #it is UNDEFINED otherwise.
     def core_distance(self, eps_seq, point_index):
-        core_distance = 0
+        r = 0
         if len(eps_seq) > 1:
-            point_sequence_index = eps_seq.index(point_index)
-            dist_right = -1
-            i = 1
-            while(point_sequence_index + i < len(eps_seq)):
-                dist = self.distance(eps_seq[point_sequence_index], eps_seq[point_sequence_index + i])
-                if(self.is_core_sequence(self.eps_sequence(point_index, dist))):
-                    dist_right = dist
+            point_eps_seq_index = eps_seq.index(point_index)
+            distances = [self.distance(point_index, pi) for i, pi in enumerate(eps_seq) if i != point_eps_seq_index]
+            distances.sort()
+            print(f"find_core_distance: lenght eps_seq {len(eps_seq)}, point_eps_seq_index {point_eps_seq_index}")
+            for i, d in enumerate(distances):
+                print(f"    check distance of point in eps_seq at index {i}/{len(eps_seq)}")
+                if self.is_core_sequence(self.eps_sequence(point_index, d)):
+                    r = d
                     break
-                i+=1
-            dist_left = -1
-            i=1
-            while(point_sequence_index - i >= 0):
-                dist = self.distance(eps_seq[point_sequence_index], eps_seq[point_sequence_index - i])
-                if(self.is_core_sequence(self.eps_sequence(point_index, dist))):
-                    dist_left = dist
-                    break
-                i+=1
-            if not (dist_left == -1 and dist_right ==-1):
-                if(dist_left == -1):
-                    core_distance = dist_right
-                if(dist_right == -1):
-                    core_distance = dist_left
-                if(not (dist_left == -1 or dist_right ==-1)):
-                    core_distance = min(dist_left, dist_right)
-        return core_distance
+        return r
 
     def compute_reachability_distances(self):
         for _, point_index, _, _ in self.traj_points:
-            eps_seq = self.eps_sequence(point_index)
-            if(self.is_core_sequence(eps_seq)):
-                r = self.core_distance(eps_seq, point_index)
-                next_point_sequence_index = eps_seq.index(point_index)
-                while(next_point_sequence_index < len(eps_seq)):
-                    self.reachability_distances[eps_seq[next_point_sequence_index]] = \
-                        max(r, self.distance(point_index, eps_seq[next_point_sequence_index]))
-                    next_point_sequence_index+=1
+            if self.reachability_distances[point_index] == self.undefined:
+                print(f"point: {point_index}/{len(self.traj_points)}")
+                eps_seq = self.eps_sequence(point_index)
+                if(self.is_core_sequence(eps_seq)):
+                    print(f"eps_sequence of {point_index} is a core sequence")
+                    r = self.core_distance(eps_seq, point_index)
+                    print(f"computed {point_index} core distance")
+                    next_point_sequence_index = eps_seq.index(point_index)
+                    while(next_point_sequence_index < len(eps_seq)):
+                        self.reachability_distances[eps_seq[next_point_sequence_index]] = \
+                            max(r, self.distance(point_index, eps_seq[next_point_sequence_index]))
+                        next_point_sequence_index+=1
 
     def extract_eps_reachability_sequences(self):
 
@@ -184,10 +175,15 @@ class SOCStopExtractor:
             return (len(seq1) > 2 and len(seq2) >2) and get_geom_hull(seq1).overlaps(get_geom_hull(seq2)) and self.time_diff(seq1[-1], seq2[0]) < self.minMov
 
         def is_mergeable(seq1, seq2):
-            return criterion1(seq1, seq2) and criterion2(seq1,seq2)
+            return criterion1(seq1, seq2) or criterion2(seq1,seq2)
 
         def merge_to_last_element(list_of_sequences, list_to_merge):
-            list_of_sequences.append(self.list_concat(list_of_sequences.pop(), list_to_merge))
+            already_merged_sequence = list_of_sequences.pop()
+            list_of_sequences.append(merge_sequences_with_noise_points(already_merged_sequence, list_to_merge))
+
+        def merge_sequences_with_noise_points(seq1, seq2):
+            noise_points = [i for i in range(seq1[-1] + 1, seq2[0])]
+            return self.list_concat(seq1, self.list_concat(noise_points, seq2))
 
         merged_eps_reachability_sequences = []
         eps_rs_counter = 0
@@ -195,7 +191,7 @@ class SOCStopExtractor:
         while(eps_rs_counter < len(eps_reachability_sequences) - 1):
             if not merged:
                 if is_mergeable(eps_reachability_sequences[eps_rs_counter], eps_reachability_sequences[eps_rs_counter+1]):
-                    merged_eps_reachability_sequences.append(self.list_concat(eps_reachability_sequences[eps_rs_counter], eps_reachability_sequences[eps_rs_counter+1]))
+                    merged_eps_reachability_sequences.append(merge_sequences_with_noise_points(eps_reachability_sequences[eps_rs_counter], eps_reachability_sequences[eps_rs_counter+1]))
                     eps_rs_counter+=2
                     merged = True
                 else:
@@ -209,11 +205,6 @@ class SOCStopExtractor:
                     merged = True
                 else:
                     merged = False
-        if not all(point_index in merged_eps_reachability_sequences[-1] for point_index in eps_reachability_sequences[-1]):
-            if is_mergeable(merged_eps_reachability_sequences[-1], eps_reachability_sequences[-1]):
-                merge_to_last_element(merged_eps_reachability_sequences, eps_reachability_sequences[-1])
-            else:
-                merged_eps_reachability_sequences.append(eps_reachability_sequences[-1])
         return merged_eps_reachability_sequences            
 
     def prune_eps_reachability_sequences(self, eps_reachability_sequences):
