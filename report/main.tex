@@ -12,6 +12,37 @@
 \usepackage{caption}
 \usepackage{subcaption}
 \usepackage{tikz}
+\usepackage{xcolor,listings}
+\usepackage{textcomp}
+\usepackage{color}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{HTML}{C42043}
+\definecolor{backcolour}{HTML}{F2F2F2}
+\definecolor{bookColor}{cmyk}{0,0,0,0.90}  
+\color{bookColor}
+
+\lstset{upquote=true}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codepurple},
+    numberstyle=\footnotesize\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=-10pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,      
+}
+\lstset{style=mystyle} 
 
 \bibliographystyle{plain}
 
@@ -624,6 +655,7 @@ MobilityDB estende PostgreSQL e PostGIS con tipi di dato temporali (\emph{ttype}
 Dai punti disambiguati che intersecano i buffer delle esibizioni abbiamo creato le geometrie temporali che rappresento i punti di fermata davanti alle esibizioni di ciascun visitatore.
 Su queste geometrie abbiamo poi applicato la funzione \emph{tcount}, la quale esegue l'interpolazione \emph{stepwise} per descrivere l'evoluzione temporale dei valori.
 Nel nostro caso, viene restituito un \emph{tint} che rappresenta la variazione nel tempo del numero di visitatori che osservano l'esibizione (Figura \ref{person_over_time}).
+La struttura delle tabelle utilizzate, la query eseguita e il diagramma a blocchi riassuntivo sono descritti nella Sezione \ref{section_query}.
 Un esempio di \emph{tint} è data dalla sequenza temporale: \\
 {[1@2021-12-13 12:08:52.424+01, 2@2021-12-13 12:08:55.537+01, 3@2021-12-13 12:09:25.787+01, 3@2021-12-13 12:14:20.27+01], (2@2021-12-13 12:14:20.2\\7+01, 2@2021-12-13 12:14:20.349+01], (1@2021-12-13 12:14:20.349+01, 1@20\\21-12-13 12:14:24.962+01]}.\\
 Il valore di una sequenza temporale è interpretato assumendo che l'intervallo di tempo definito da ciascuna coppia di valori consecutivi sia chiuso a sinistra e aperto a destra, a meno che non siano la prima o l'ultima istanza della sequenza: in quel caso si applica il tipo di intervallo dell'intera sequenza.
@@ -632,8 +664,7 @@ Quindi la precedente sequenza viene interpretata nel seguente modo:
     \item l'esibizione è osservata da 1 visitatore dall'istante 2021-12-13 12:08:52.\\424+01 all'istante precedente a 2021-12-13 12:08:55.537+01;
     \item l'esibizione è osservata da 2 visitatori dall'istante 2021-12-13 12:08:55.\\537+01 all'istante precedente a 2021-12-13 12:09:25.787+01;
     \item l'esibizione è osservata da 3 visitatori dall'istante 2021-12-13 12:09:25.\\787+01 all'istante 2021-12-13 12:14:20.27+01;
-    \item l'esibizione ritorna ad essere visitata da 2 visitatori dall'istante successivo a 2021-12-13 12:14:20.27+01 all'istante 2021-12-13 12:14:20.349+01;
-    \item l'esibizione ritorna ad essere visitata da 1 visitatore dall'istante successivo a 2021-12-13 12:14:20.349+01 all'istante 2021-12-13 12:14:24.962+01.
+    \item l'esibizione ritorna ad essere visitata da 2 visitatori dall'istante successivo a 2021-12-13 12:14:20.27+01 all'istante 2021-12-13 12:14:20.349+01.
 \end{itemize}
 
 \begin{figure}[!h]
@@ -1985,6 +2016,228 @@ Quindi la precedente sequenza viene interpretata nel seguente modo:
     \caption{Variazione nel tempo delle persone che osservano le esibizioni.}
     \label{person_over_time}
 \end{figure}
+
+\clearpage
+\section{Query}\label{section_query}
+La seguente query calcola quante persone vedono ciascuna esibizione nel tempo.
+Le tabelle utilizzate sono:
+\begin{itemize}
+    \item \lstinline[basicstyle=\ttfamily]!stop_points_p{57,67,68}_SOC_eps1_tau20_minMov05!: contengono i punti classificati utilizzando l'algoritmo SOC.
+    La colonna \emph{Segment} contiene il valore “move” se il punto appartiene a una sequenza di movimento oppure “stop\_\{indiceFermata\}” se appartiene a una sequenza di stop.
+    \begin{itemize}
+        \item id:Integer
+        \item geom:Geometry
+        \item x:Double Precision
+        \item y:Double Precision
+        \item timestamp:Varchar
+        \item Segment:Varchar
+    \end{itemize}
+    \item  \lstinline[basicstyle=\ttfamily]!exhibits_on_tables_buffers_07m!: contiene le geometrie dei buffer di raggio 70cm costruiti intorno alle esibizioni.
+    \begin{itemize}
+        \item id:Integer
+        \item geom:Geometry
+    \end{itemize}
+\end{itemize}
+
+\begin{lstlisting}[language=SQL,
+    deletekeywords={IDENTITY,INT},
+    morekeywords={clustered},    
+    framesep=10pt,
+    framextopmargin=10pt]
+
+    WITH sp57_min_distance_from_buffers AS (
+		SELECT sp57.id , min(st_distance(sp57.geom, st_centroid(eb.geom))) as min_distance
+		FROM "stop_points_p57_SOC_eps1_tau20_minMov05" AS sp57 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp57.geom, eb.geom)
+		WHERE sp57.segment != 'move'
+		GROUP BY sp57.id
+), sp57_stop_points_in_nearest_exh_buffers AS (
+		SELECT 57 AS person_id, sp57.id as point_id, sp57.geom, sp57.timestamp, eb.id as exh_id, st_distance(sp57.geom, st_centroid(eb.geom)) as distance_from_centroid
+		FROM "stop_points_p57_SOC_eps1_tau20_minMov05" AS sp57 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp57.geom, eb.geom)
+		JOIN sp57_min_distance_from_buffers AS sp57_min_dist ON sp57.id = sp57_min_dist.id
+		WHERE sp57_min_dist.min_distance = st_distance(sp57.geom, st_centroid(eb.geom))
+), sp67_min_distance_from_buffers AS (
+		SELECT sp67.id , min(st_distance(sp67.geom, st_centroid(eb.geom))) as min_distance
+		FROM "stop_points_p67_SOC_eps1_tau20_minMov05" AS sp67 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp67.geom, eb.geom)
+		WHERE sp67.segment != 'move'
+		GROUP BY sp67.id
+), sp67_stop_points_in_nearest_exh_buffers AS (
+		SELECT 67 as person_id, sp67.id as point_id, sp67.geom, sp67.timestamp, eb.id as exh_id, st_distance(sp67.geom, st_centroid(eb.geom)) as distance_from_centroid
+		FROM "stop_points_p67_SOC_eps1_tau20_minMov05" AS sp67 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp67.geom, eb.geom)
+		JOIN sp67_min_distance_from_buffers AS sp67_min_dist ON sp67.id = sp67_min_dist.id
+		WHERE sp67_min_dist.min_distance = st_distance(sp67.geom, st_centroid(eb.geom))
+), sp68_min_distance_from_buffers AS (
+		SELECT sp68.id , min(st_distance(sp68.geom, st_centroid(eb.geom))) as min_distance
+		FROM "stop_points_p68_SOC_eps1_tau20_minMov05" AS sp68 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp68.geom, eb.geom)
+		WHERE sp68.segment != 'move'
+		GROUP BY sp68.id
+), sp68_stop_points_in_nearest_exh_buffers AS (
+		SELECT 68 as person_id, sp68.id as point_id, sp68.geom, sp68.timestamp, eb.id as exh_id, st_distance(sp68.geom, st_centroid(eb.geom)) as distance_from_centroid
+		FROM "stop_points_p68_SOC_eps1_tau20_minMov05" AS sp68 
+		JOIN exhibits_on_tables_buffers_07m AS eb ON st_intersects(sp68.geom, eb.geom)
+		JOIN sp68_min_distance_from_buffers AS sp68_min_dist ON sp68.id = sp68_min_dist.id
+		WHERE sp68_min_dist.min_distance = st_distance(sp68.geom, st_centroid(eb.geom))
+), person_tstop_points AS (
+    SELECT person_id, exh_id, tgeompoint_seq(array_agg(tgeompoint_inst(geom, timestamp) ORDER BY timestamp)) AS tpoint
+    FROM (
+        SELECT * FROM sp57_stop_points_in_nearest_exh_buffers 
+        UNION 
+        SELECT * FROM sp67_stop_points_in_nearest_exh_buffers
+        UNION
+        SELECT * FROM sp68_stop_points_in_nearest_exh_buffers
+    ) AS stop_points_in_nearest_exh_buffers
+    GROUP BY person_id, exh_id
+), exhibit_persons_over_time AS (
+    SELECT exh_id,  tcount(tpoint) as persons_over_time
+    FROM person_tstop_points
+    GROUP BY exh_id
+    ORDER BY exh_id
+)
+
+    SELECT * FROM exhibit_persons_over_time
+\end{lstlisting}
+\begin{figure}[!h]
+    \centering
+    \resizebox{0.7\textwidth}{!}{%
+
+    \tikzset{every picture/.style={line width=0.75pt}} %set default line width to 0.75pt        
+
+    \begin{tikzpicture}[x=0.75pt,y=0.75pt,yscale=-1,xscale=1]
+    %uncomment if require: \path (0,791); %set diagram left start at 0, and has height of 791
+    
+    %Shape: Rectangle [id:dp12481698316600909] 
+    \draw   (388.37,179.64) -- (654.51,179.64) -- (654.51,291.85) -- (388.37,291.85) -- cycle ;
+    
+    %Straight Lines [id:da42938588111989473] 
+    \draw    (343.75,235.75) -- (386.51,235.75) ;
+    \draw [shift={(388.51,235.75)}, rotate = 180] [color={rgb, 255:red, 0; green, 0; blue, 0 }  ][line width=0.75]    (10.93,-3.29) .. controls (6.95,-1.4) and (3.31,-0.3) .. (0,0) .. controls (3.31,0.3) and (6.95,1.4) .. (10.93,3.29)   ;
+    %Shape: Rectangle [id:dp2901641842542111] 
+    \draw   (85.51,178.24) -- (343.19,178.24) -- (343.19,293.25) -- (85.51,293.25) -- cycle ;
+    
+    
+    %Straight Lines [id:da5677522459559932] 
+    \draw    (367.25,458.25) -- (367.25,518.25)(364.25,458.25) -- (364.25,518.25) ;
+    \draw [shift={(365.75,527.25)}, rotate = 270] [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ][line width=0.08]  [draw opacity=0] (11.61,-5.58) -- (0,0) -- (11.61,5.58) -- (7.71,0) -- cycle    ;
+    %Shape: Rectangle [id:dp30109312942655864] 
+    \draw   (133.76,528.25) -- (597.73,528.25) -- (597.73,628.25) -- (133.76,628.25) -- cycle ;
+    
+    %Straight Lines [id:da8054091533236545] 
+    \draw    (367.25,641.25) -- (367.25,695.25)(364.25,641.25) -- (364.25,695.25) ;
+    \draw [shift={(365.75,704.25)}, rotate = 270] [fill={rgb, 255:red, 0; green, 0; blue, 0 }  ][line width=0.08]  [draw opacity=0] (11.61,-5.58) -- (0,0) -- (11.61,5.58) -- (7.71,0) -- cycle    ;
+    %Shape: Rectangle [id:dp9131770309089451] 
+    \draw   (185.5,705.25) -- (545.99,705.25) -- (545.99,761.82) -- (185.5,761.82) -- cycle ;
+    
+    %Shape: Rectangle [id:dp9476252781673256] 
+    \draw   (388.37,18.11) -- (654.51,18.11) -- (654.51,126.89) -- (388.37,126.89) -- cycle ;
+    
+    %Straight Lines [id:da2375382438304683] 
+    \draw    (343.75,72.5) -- (386.51,72.5) ;
+    \draw [shift={(388.51,72.5)}, rotate = 180] [color={rgb, 255:red, 0; green, 0; blue, 0 }  ][line width=0.75]    (10.93,-3.29) .. controls (6.95,-1.4) and (3.31,-0.3) .. (0,0) .. controls (3.31,0.3) and (6.95,1.4) .. (10.93,3.29)   ;
+    %Shape: Rectangle [id:dp7768898216077054] 
+    \draw   (85.51,16.75) -- (343.19,16.75) -- (343.19,128.25) -- (85.51,128.25) -- cycle ;
+    
+    
+    %Shape: Rectangle [id:dp2563593058292253] 
+    \draw   (388.37,341.1) -- (654.51,341.1) -- (654.51,448.91) -- (388.37,448.91) -- cycle ;
+    
+    %Straight Lines [id:da32477053871115436] 
+    \draw    (343.75,395) -- (386.51,395) ;
+    \draw [shift={(388.51,395)}, rotate = 180] [color={rgb, 255:red, 0; green, 0; blue, 0 }  ][line width=0.75]    (10.93,-3.29) .. controls (6.95,-1.4) and (3.31,-0.3) .. (0,0) .. controls (3.31,0.3) and (6.95,1.4) .. (10.93,3.29)   ;
+    %Shape: Rectangle [id:dp24695344153047372] 
+    \draw   (85.51,339.75) -- (343.19,339.75) -- (343.19,450.25) -- (85.51,450.25) -- cycle ;
+    
+    
+    
+    % Text Node
+    \draw (96,488.13) node [anchor=north west][inner sep=0.75pt]  [font=\footnotesize] [align=left] {Raggruppamento per persona ed esibizione};
+    % Text Node
+    \draw (160,661.13) node [anchor=north west][inner sep=0.75pt]  [font=\footnotesize] [align=left] {Raggruppamento per esibizione};
+    % Text Node
+    \draw (348.68,140.19) node [anchor=north west][inner sep=0.75pt]  [font=\LARGE]  {$\cup $};
+    % Text Node
+    \draw (348.68,301.68) node [anchor=north west][inner sep=0.75pt]  [font=\LARGE]  {$\cup $};
+    % Text Node
+    \draw (98.85,215.65) node [anchor=north west][inner sep=0.75pt]   [align=left] {\begin{minipage}[lt]{157.86pt}\setlength\topsep{0pt}
+    \begin{center}
+    {\footnotesize $\displaystyle \forall sp\ \in \ Traj67$ calcola distanza minima}\\{\footnotesize da $\displaystyle sp$ al centroide del buffer dell'esibizione }
+    \end{center}
+    
+    \end{minipage}};
+    % Text Node
+    \draw (405.94,211.71) node [anchor=north west][inner sep=0.75pt]   [align=left] {\begin{minipage}[lt]{158.02pt}\setlength\topsep{0pt}
+    \begin{center}
+    {\footnotesize $\displaystyle \forall sp\ $ considera \ $\displaystyle sp\ \cap $ buffer esibizioni}\\{\footnotesize e assegna ad ogni $\displaystyle sp$ l'esibizione più vicina}
+    \end{center}
+    
+    \end{minipage}};
+    % Text Node
+    \draw (10.25,229.25) node [anchor=north west][inner sep=0.75pt]  [font=\footnotesize] [align=left] {persona 67};
+    % Text Node
+    \draw (10.25,66) node [anchor=north west][inner sep=0.75pt]  [font=\footnotesize] [align=left] {persona 57};
+    % Text Node
+    \draw (98.85,52.44) node [anchor=north west][inner sep=0.75pt]   [align=left] {\begin{minipage}[lt]{157.86pt}\setlength\topsep{0pt}
+    \begin{center}
+    {\footnotesize $\displaystyle \forall sp\ \in \ Traj57$ calcola distanza minima}\\{\footnotesize da $\displaystyle sp$ al centroide del buffer dell'esibizione }
+    \end{center}
+    
+    \end{minipage}};
+    % Text Node
+    \draw (405.94,48.62) node [anchor=north west][inner sep=0.75pt]   [align=left] {\begin{minipage}[lt]{158.02pt}\setlength\topsep{0pt}
+    \begin{center}
+    {\footnotesize $\displaystyle \forall sp\ $ considera \ $\displaystyle sp\ \cap $ buffer esibizioni}\\{\footnotesize e assegna ad ogni $\displaystyle sp$ l'esibizione più vicina}
+    \end{center}
+    
+    \end{minipage}};
+    % Text Node
+    \draw (10.25,388.5) node [anchor=north west][inner sep=0.75pt]  [font=\footnotesize] [align=left] {persona 68};
+    % Text Node
+    \draw (98.85,374.95) node [anchor=north west][inner sep=0.75pt]   [align=left] {\begin{minipage}[lt]{157.86pt}\setlength\topsep{0pt}
+    \begin{center}
+    {\footnotesize $\displaystyle \forall sp\ \in \ Traj68$ calcola distanza minima}\\{\footnotesize da $\displaystyle sp$ al centroide del buffer dell'esibizione }
+    \end{center}
+    
+    \end{minipage}};
+    % Text Node
+    \draw (405.94,371.16) node [anchor=north west][inner sep=0.75pt]   [align=left] {\begin{minipage}[lt]{158.02pt}\setlength\topsep{0pt}
+    \begin{center}
+    {\footnotesize $\displaystyle \forall sp\ $ considera \ $\displaystyle sp\ \cap $ buffer esibizioni}\\{\footnotesize e assegna ad ogni $\displaystyle sp$ l'esibizione più vicina}
+    \end{center}
+    
+    \end{minipage}};
+    % Text Node
+    \draw (268.75,725.03) node [anchor=north west][inner sep=0.75pt]   [align=left] {\begin{minipage}[lt]{132.83pt}\setlength\topsep{0pt}
+    \begin{center}
+    {\footnotesize Temporal aggregate function: tcount}
+    \end{center}
+    
+    \end{minipage}};
+    % Text Node
+    \draw (198.75,558.92) node [anchor=north west][inner sep=0.75pt]   [align=left] {\begin{minipage}[lt]{228.44pt}\setlength\topsep{0pt}
+    \begin{center}
+    {\footnotesize Creazione traiettorie MobilityDB}
+    \end{center}
+    \textit{{\footnotesize tgeompoint\_seq(array\_agg(tgeompoint\_inst(geom, timestamp)}}
+    \end{minipage}};
+    
+    
+    \end{tikzpicture}
+    
+
+
+
+    
+
+}%
+
+\caption{Diagramma a blocchi della query.}
+\label{query_person_over_time_img}
+\end{figure}
+
+
 
 \clearpage
 \bibliography{bibliography}
