@@ -1,5 +1,5 @@
 # Spatial trajectory segmentation and analysis
-q
+
 <p>University project of the <b>Geospatial data management</b> course focused on the implementation and comparison of three different <b>spatial trajectories segmentation algorithms</b> described in the following research papers:
 <ul>
   <li><b>SOC</b>:
